@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -89,24 +88,10 @@ func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, rawPath string, op *O
 		fullURL += "?" + q
 	}
 
-	// 3. Prepare Request
-	req, err := http.NewRequest("GET", fullURL, nil)
+	// 3. Auth
+	apiKey, err := getAPIKey(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// 4. Auth
-	apiKey, _ := cmd.Flags().GetString("key")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "ApiKey "+apiKey)
-		// Also support "Key" query param if preferred? V2 usually likes Headers.
-		// Spec has `securitySchemes`.
-	} else {
-		// Check env var
-		apiKey = os.Getenv("TORN_API_KEY")
-		if apiKey != "" {
-			req.Header.Set("Authorization", "ApiKey "+apiKey)
-		}
+		return err
 	}
 
 	// 5. Execute Loop

@@ -80,6 +80,7 @@ func TestExecuteRequest_MalformedJSON(t *testing.T) {
 	defer ts.Close()
 
 	cmd, spec := setupTestCmd(ts.URL)
+	cmd.Flags().Set("key", "testkey")
 
 	// Should NOT error, but print raw body.
 	// ExecuteRequest currently returns nil if read succeeds, even if JSON unmarshal fails.
@@ -100,6 +101,7 @@ func TestExecuteRequest_TornLogic_ErrorIn200(t *testing.T) {
 	defer ts.Close()
 
 	cmd, spec := setupTestCmd(ts.URL)
+	cmd.Flags().Set("key", "testkey")
 	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -117,6 +119,7 @@ func TestExecuteRequest_EmptyPathParam(t *testing.T) {
 	defer ts.Close()
 
 	cmd, spec := setupTestCmd(ts.URL)
+	cmd.Flags().Set("key", "testkey")
 	// ID not set
 
 	err := ExecuteRequest(cmd, spec, "/user/{id}/profile", &Operation{}, []string{"id"})
