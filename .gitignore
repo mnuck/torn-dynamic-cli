@@ -1,0 +1,18 @@
+# Build output
+/torn
+
+# Environment / secrets
+.env
+
+# Cached API responses and data files (root-level only)
+/*.json
+
+# Ad-hoc analysis scripts (not part of the Go build)
+*.py
+
+# Claude Code local settings (machine-specific, may contain secrets)
+.claude/settings.local.json
+
+# OMC runtime state (ephemeral)
+.omc/sessions/
+.omc/state/
