@@ -45,18 +45,8 @@ type hitRecord struct {
 	Link      string
 }
 
-func runHitsReport(apiKey, name string, days int) error {
-	from := time.Now().Unix() - int64(days)*86400
-
-	fmt.Fprintf(os.Stderr, "Fetching outgoing attacks since %s...\n",
-		time.Unix(from, 0).UTC().Format("2006-01-02 15:04 UTC"))
-
-	url := fmt.Sprintf("https://api.torn.com/v2/faction/attacks?filters=out&from=%d", from)
-	pages, err := fetchAllPages(apiKey, url)
-	if err != nil {
-		return fmt.Errorf("failed to fetch attacks: %w", err)
-	}
-
+// filterHits scans paginated attack pages and returns all attacks made by name.
+func filterHits(pages [][]byte, name string) []hitRecord {
 	var hits []hitRecord
 	for _, page := range pages {
 		attacks := gjson.GetBytes(page, "attacks").Array()
@@ -80,6 +70,22 @@ func runHitsReport(apiKey, name string, days int) error {
 			})
 		}
 	}
+	return hits
+}
+
+func runHitsReport(apiKey, name string, days int) error {
+	from := time.Now().Unix() - int64(days)*86400
+
+	fmt.Fprintf(os.Stderr, "Fetching outgoing attacks since %s...\n",
+		time.Unix(from, 0).UTC().Format("2006-01-02 15:04 UTC"))
+
+	url := fmt.Sprintf("https://api.torn.com/v2/faction/attacks?filters=out&from=%d", from)
+	pages, err := fetchAllPages(apiKey, url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch attacks: %w", err)
+	}
+
+	hits := filterHits(pages, name)
 
 	sort.Slice(hits, func(i, j int) bool {
 		return hits[i].Timestamp < hits[j].Timestamp

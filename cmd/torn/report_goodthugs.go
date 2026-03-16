@@ -10,6 +10,25 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type goodThug struct {
+	memberInfo
+	OCCount int
+}
+
+// classifyThugs splits a list of Thugs into those who have completed at least one OC
+// within the lookback window (ready for promotion) and those who have not.
+func classifyThugs(thugs []memberInfo, ocCount map[int]int) (ready []goodThug, notYet []memberInfo) {
+	for _, t := range thugs {
+		count := ocCount[t.ID]
+		if count > 0 {
+			ready = append(ready, goodThug{memberInfo: t, OCCount: count})
+		} else {
+			notYet = append(notYet, t)
+		}
+	}
+	return ready, notYet
+}
+
 // newGoodThugsCmd returns the "goodthugs" subcommand that identifies Thugs ready for promotion.
 func newGoodThugsCmd() *cobra.Command {
 	var days int
@@ -82,22 +101,7 @@ func runGoodThugsReport(apiKey string, days int) error {
 	}
 
 	// Step 3: Split thugs into ready vs not-yet
-	type goodThug struct {
-		memberInfo
-		OCCount int
-	}
-
-	var ready []goodThug
-	var notYet []memberInfo
-
-	for _, t := range thugs {
-		count := ocCount[t.ID]
-		if count > 0 {
-			ready = append(ready, goodThug{memberInfo: t, OCCount: count})
-		} else {
-			notYet = append(notYet, t)
-		}
-	}
+	ready, notYet := classifyThugs(thugs, ocCount)
 
 	// Sort ready by OC count descending, then by name
 	sort.Slice(ready, func(i, j int) bool {

@@ -11,6 +11,48 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type freeloader struct {
+	Name          string
+	XanaxCount    int
+	Level         int
+	Position      string
+	DaysInFaction int
+}
+
+// classifyFreeloaders cross-references Xanax usage against OC participation.
+// Returns the list of members who used Xanax but are not in any OC, and the count of compliant members.
+// Members in xanaxUsage but not in nameToID are ignored (left the faction).
+func classifyFreeloaders(
+	xanaxUsage map[string]int,
+	nameToID map[string]int,
+	memberData map[int]memberInfo,
+	ocParticipants map[int]bool,
+) ([]freeloader, int) {
+	var freeloaders []freeloader
+	compliantCount := 0
+
+	for username, count := range xanaxUsage {
+		userID, exists := nameToID[username]
+		if !exists {
+			continue
+		}
+		member := memberData[userID]
+		inOC := ocParticipants[userID] || member.IsInOC
+		if !inOC {
+			freeloaders = append(freeloaders, freeloader{
+				Name:          username,
+				XanaxCount:    count,
+				Level:         member.Level,
+				Position:      member.Position,
+				DaysInFaction: member.DaysInFaction,
+			})
+		} else {
+			compliantCount++
+		}
+	}
+	return freeloaders, compliantCount
+}
+
 // newFreeloadersCmd returns the "freeloaders" subcommand that checks Xanax usage vs OC participation.
 func newFreeloadersCmd() *cobra.Command {
 	var hours int
@@ -140,40 +182,10 @@ func runFreeloadersReport(apiKey string, hours int) error {
 	}
 
 	// Step 4: Cross-reference to identify freeloaders
-	type freeloader struct {
-		Name          string
-		XanaxCount    int
-		Level         int
-		Position      string
-		DaysInFaction int
-	}
-
-	var freeloaders []freeloader
-	compliantCount := 0
+	freeloaders, compliantCount := classifyFreeloaders(xanaxUsage, nameToID, memberData, ocParticipants)
 	totalXanax := 0
-
-	for username, count := range xanaxUsage {
+	for _, count := range xanaxUsage {
 		totalXanax += count
-		userID, exists := nameToID[username]
-		if !exists {
-			// Username not found in member list - possibly left faction
-			continue
-		}
-
-		member := memberData[userID]
-		inOC := ocParticipants[userID] || member.IsInOC
-
-		if !inOC {
-			freeloaders = append(freeloaders, freeloader{
-				Name:          username,
-				XanaxCount:    count,
-				Level:         member.Level,
-				Position:      member.Position,
-				DaysInFaction: member.DaysInFaction,
-			})
-		} else {
-			compliantCount++
-		}
 	}
 
 	// Sort freeloaders by Xanax usage (descending), then by name
