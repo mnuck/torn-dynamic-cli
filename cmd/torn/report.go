@@ -22,6 +22,7 @@ func NewReportCmd() *cobra.Command {
 	reportCmd.AddCommand(newFreeloadersCmd())
 	reportCmd.AddCommand(newGoodThugsCmd())
 	reportCmd.AddCommand(newHitsCmd())
+	reportCmd.AddCommand(newLateOCsCmd())
 	return reportCmd
 }
 
