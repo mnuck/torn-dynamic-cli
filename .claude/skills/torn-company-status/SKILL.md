@@ -35,17 +35,21 @@ When the user mentions any of:
 
 ## The Approach
 
-Execute these 3 API calls and produce the analysis report below. **The API key MUST come from the `TORN_API_KEY` environment variable.**
+Execute these 3 API calls and produce the analysis report below. **Load the API key from the `.env` file** (it is not exported to the shell environment):
+
+```bash
+KEY=$(grep TORN_API_KEY .env | cut -d= -f2)
+```
 
 ### Step 1: Fetch Company Profile & Details
 
 ```bash
 # Get company profile (ID, name, type, rating)
-curl -s "https://api.torn.com/company/?selections=profile&key=$TORN_API_KEY"
+curl -s "https://api.torn.com/company/?selections=profile&key=$KEY"
 # Returns: { "company": { "ID": N, "company_type": N, "name": "...", "rating": N, ... } }
 
 # Get company financials (daily/weekly income and customers)
-curl -s "https://api.torn.com/company/?selections=&key=$TORN_API_KEY"
+curl -s "https://api.torn.com/company/?selections=&key=$KEY"
 # Returns: { "company": { "daily_income": N, "daily_customers": N, "weekly_income": N, "weekly_customers": N, ... } }
 ```
 
@@ -53,7 +57,7 @@ curl -s "https://api.torn.com/company/?selections=&key=$TORN_API_KEY"
 
 ```bash
 # Get all companies of the same type (e.g., type 8 = Candle Shop)
-curl -s "https://api.torn.com/company/{company_type}?selections=companies&key=$TORN_API_KEY"
+curl -s "https://api.torn.com/company/{company_type}?selections=companies&key=$KEY"
 # Returns: { "company": { "id1": { "rating": N, "weekly_income": N }, ... } }
 ```
 
@@ -74,22 +78,23 @@ my_weekly = details['weekly_income']
 my_daily = details['daily_income']
 
 # Filter companies at my rating tier
-same_tier = [(cid, c) for cid, c in all_companies.items() if c['rating'] == my_rating]
-same_tier.sort(key=lambda x: x[1]['weekly_income'], reverse=True)
+# all_companies is a dict of {str_id: company_dict}; always unpack as (_, c)
+same_tier = [c for _, c in all_companies.items() if c['rating'] == my_rating]
+same_tier.sort(key=lambda c: c['weekly_income'], reverse=True)
 
 # My rank within tier
-my_rank = len([c for c in same_tier if c[1]['weekly_income'] > my_weekly]) + 1
+my_rank = len([c for c in same_tier if c['weekly_income'] > my_weekly]) + 1
 total_in_tier = len(same_tier)
 below_me = total_in_tier - my_rank
 
 # Floor of my tier
-lowest_in_tier = min(c[1]['weekly_income'] for c in same_tier)
+lowest_in_tier = min(c['weekly_income'] for c in same_tier)
 my_margin = my_weekly - lowest_in_tier
 
 # Pressure from below (tier - 1)
-lower_tier = [(cid, c) for cid, c in all_companies.items() if c['rating'] == my_rating - 1]
-threatening = [c for c in lower_tier if c[1]['weekly_income'] > lowest_in_tier]
-highest_lower = max((c[1]['weekly_income'] for c in lower_tier), default=0)
+lower_tier = [c for _, c in all_companies.items() if c['rating'] == my_rating - 1]
+threatening = [c for c in lower_tier if c['weekly_income'] > lowest_in_tier]
+highest_lower = max((c['weekly_income'] for c in lower_tier), default=0)
 
 # Risk assessment
 pct_below = (below_me / total_in_tier * 100) if total_in_tier > 0 else 0
@@ -97,7 +102,7 @@ if pct_below > 20:
     risk = "LOW"
 elif pct_below >= 5 and len(threatening) == 0:
     risk = "MEDIUM"
-elif pct_below < 5 or any(c[1]['weekly_income'] > my_weekly for c in lower_tier):
+elif pct_below < 5 or any(c['weekly_income'] > my_weekly for c in lower_tier):
     risk = "HIGH"
 else:
     risk = "MEDIUM"
