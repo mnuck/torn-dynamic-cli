@@ -153,6 +153,45 @@ When checking planning OCs:
 - Sort by `ready_at` ascending to find the soonest ones first.
 - Check member statuses for any OC whose `ready_at` is within the next ~6 hours.
 
+Save the output to a file and parse it with Python:
+
+```bash
+./torn faction crimes --cat planning > /tmp/planning_crimes.json
+```
+
+```python
+import json, datetime
+
+with open('/tmp/planning_crimes.json') as f:
+    data = json.load(f)
+
+# IMPORTANT: use datetime.now(timezone.utc).timestamp() — NOT utcnow().timestamp()
+# utcnow() returns a naive datetime; .timestamp() interprets it as local time, giving
+# a wrong Unix timestamp if the machine is not UTC. This bug makes OCs appear late
+# or early by the local timezone offset.
+now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+cutoff = now + 6 * 3600  # 6 hours from now
+
+soon = []
+for crime in data['crimes']:
+    ready_at = crime.get('ready_at')
+    if ready_at and ready_at <= cutoff:
+        dt = datetime.datetime.fromtimestamp(ready_at, tz=datetime.timezone.utc)
+        mins_away = (ready_at - now) / 60
+        member_ids = [s['user']['id'] for s in crime.get('slots', []) if s.get('user')]
+        soon.append((mins_away, crime['id'], crime['name'], dt.strftime('%H:%M UTC'), member_ids))
+
+soon.sort()
+for mins, cid, name, dt, mids in soon:
+    h, m = divmod(int(abs(mins)), 60)
+    sign = 'in' if mins >= 0 else 'PAST'
+    print(f'{name} (id={cid}) — {sign} {h}h{m:02d}m at {dt} — members: {mids}')
+```
+
+**Note on expired OCs:** OCs with `expired_at` < `ready_at` represent crimes where a member joined during planning and then left before the crime became viable. These appear in API results but are **not real late OCs** — ignore them in penalty investigations.
+
+**Note on server lag:** Torn sometimes takes up to ~30 seconds to execute a crime after `ready_at`. A delay that small is server processing, not a member violation. Don't penalize for it.
+
 1. Fetch the OC details (from `./torn faction crimes --cat planning`) to get `ready_at` and member list
 2. Look up each member's current status via `./torn user profile --id <id>`
 3. For any member who is **Abroad** or **Traveling**, estimate whether they can make it back in time
