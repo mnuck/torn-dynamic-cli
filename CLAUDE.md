@@ -82,11 +82,13 @@ torn --help
 - Error wrapping with `fmt.Errorf("context: %w", err)`
 - Flags registered with nil-check to avoid duplicates when paths overlap
 
-## Scripts
+## Skills
 
-`scripts/` contains utilities not part of the Go build:
-- `generate_armory_report.sh` - Generates faction armory report
-- `armory-report.md` - Most recent armory report output
+`.claude/skills/` contains Claude skills and utilities:
+- `late-oc/` - Late OC investigation skill
+- `torn-company-status/` - Company star rating risk analysis skill
+- `armory-report/generate_armory_report.sh` - Generates faction armory report
+- `armory-report/armory-report.md` - Most recent armory report output
 
 ## Git Workflow
 

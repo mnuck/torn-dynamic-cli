@@ -11,6 +11,8 @@ You're helping a Torn faction leader build a case for who delayed an organized c
 1. **Right now**: which OC is late, and who is currently blocking it?
 2. **At the moment it went live**: who was absent from Torn when the OC first became ready?
 
+**How OCs fire:** OCs trigger **automatically** the moment `ready_at` arrives — there is no manual execute step and no button to push. The only requirement is that every member is in Torn (status "Okay") at that moment. If anyone is Abroad, Traveling, in Hospital, or in Jail when `ready_at` hits, the OC is delayed until they return.
+
 ---
 
 ## Phase 1: Find late OCs
@@ -144,7 +146,12 @@ The goal: "At the moment this OC went live, X, Y, Z were in Torn and ready, but 
 
 ## Phase 3: Predictive — OCs that will be late
 
-When the user asks about an OC that isn't late *yet* but they suspect will be, or asks to predict delays:
+When the user asks "are there any OCs in danger of being late?" or any similar open-ended question about upcoming OCs, **always run Phase 3** — don't stop at Phase 1. Phase 1 only finds already-late OCs; Phase 3 catches ones about to become late.
+
+When checking planning OCs:
+- Run `./torn faction crimes --cat planning` and parse the **full** response — never truncate the output. There can be many OCs.
+- Sort by `ready_at` ascending to find the soonest ones first.
+- Check member statuses for any OC whose `ready_at` is within the next ~6 hours.
 
 1. Fetch the OC details (from `./torn faction crimes --cat planning`) to get `ready_at` and member list
 2. Look up each member's current status via `./torn user profile --id <id>`

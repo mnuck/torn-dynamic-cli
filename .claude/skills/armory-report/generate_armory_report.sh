@@ -3,7 +3,7 @@
 # Armory Check Report Generator
 # Generates report with costs and market links, accounting for loaned items
 
-cd /Users/matthewnuckolls/torn_api/torn-dynamic-cli
+cd /Users/mnuck/torn-dynamic-cli
 
 # Item ID mapping
 BOOTS_ID=653
