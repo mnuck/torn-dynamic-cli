@@ -30,6 +30,7 @@ All Go source lives under `cmd/torn/` (single `main` package). The OpenAPI spec 
 - `--all` flag enables auto-pagination following `_metadata.links.next` or `_metadata.links.prev`
 - Auth via `--key` flag or `TORN_API_KEY` env var, sent as `Authorization: ApiKey <key>` header
 - Graceful pipe-break detection (e.g. `torn user events --all | grep -m 1 foo`)
+- Direct-by-ID endpoints follow the shape `/{category}/{paramId}/{resource}` (e.g. `/faction/{crimeId}/crime`), which maps to `torn <category> <resource> --<paramId> <id>`. Always prefer these over fetching the full list when you have an ID.
 
 ## Build & Test
 
