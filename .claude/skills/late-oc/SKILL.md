@@ -20,13 +20,12 @@ You're helping a Torn faction leader build a case for who delayed an organized c
 Use the built-in CLI report command:
 
 ```bash
-# Currently late OCs (with member status and blocker identification)
-./torn report late-ocs
-
-# Historical lookback (includes completed OCs that were late, with 5min+ delay)
-./torn report late-ocs --hours 24
-./torn report late-ocs --hours 48
+# Always run both of these together:
+./torn report late-ocs           # currently late OCs
+./torn report late-ocs --hours 24  # OCs that were late in the last 24h (includes just-executed ones)
 ```
+
+Always run both commands. The `--hours 24` flag catches OCs that fired recently after a delay — they drop off the live list once executed but are still relevant.
 
 The command handles everything: fetching crimes, filtering out Recruiting, identifying blockers, looking up member names and current status in parallel, and formatting a summary table.
 
@@ -37,6 +36,8 @@ For currently-late OCs it shows a full table with position, item availability, c
 For historical OCs it shows the delay duration and member list.
 
 From here, pick the OC(s) to investigate and proceed to Phase 2.
+
+After running both late-oc commands, **always also run Phase 3** to check for upcoming OCs at risk. Do not wait for the user to ask.
 
 ---
 
