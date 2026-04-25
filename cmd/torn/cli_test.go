@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Helper to create a dummy spec and command for testing
-func setupTestCmd(serverURL string) (*cobra.Command, *OpenAPISpec) {
+// Helper to create a dummy spec, command, and single-variant slice for testing.
+func setupTestCmd(serverURL string, rawPath string, pathParams []string) (*cobra.Command, *OpenAPISpec, []pathVariant) {
 	spec := &OpenAPISpec{
 		Servers: []Server{{URL: serverURL}},
 	}
@@ -23,7 +23,12 @@ func setupTestCmd(serverURL string) (*cobra.Command, *OpenAPISpec) {
 	cmd.Flags().String("striptags", "", "Striptags")
 	cmd.Flags().Bool("all", false, "All")
 
-	return cmd, spec
+	variants := []pathVariant{{
+		path:       rawPath,
+		pathParams: pathParams,
+	}}
+
+	return cmd, spec, variants
 }
 
 func TestExecuteRequest_HappyPath(t *testing.T) {
@@ -42,15 +47,11 @@ func TestExecuteRequest_HappyPath(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/{id}/profile", []string{"id"})
 	cmd.Flags().Set("key", "mykey")
 	cmd.Flags().Set("id", "123")
 
-	op := &Operation{}
-	pathParams := []string{"id"}
-
-	// Test
-	err := ExecuteRequest(cmd, spec, "/user/{id}/profile", op, pathParams)
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -63,10 +64,10 @@ func TestExecuteRequest_APIError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/profile", nil)
 	cmd.Flags().Set("key", "badkey")
 
-	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 
 	// We expect an error because status >= 400
 	if err == nil {
@@ -81,13 +82,13 @@ func TestExecuteRequest_MalformedJSON(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/profile", nil)
 	cmd.Flags().Set("key", "testkey")
 
 	// Should NOT error, but print raw body.
 	// ExecuteRequest currently returns nil if read succeeds, even if JSON unmarshal fails.
 	// This is "by design" for the CLI (just dump output).
-	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Errorf("Did not expect error for malformed JSON, just raw print: %v", err)
 	}
@@ -102,9 +103,9 @@ func TestExecuteRequest_TornLogic_ErrorIn200(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/profile", nil)
 	cmd.Flags().Set("key", "testkey")
-	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -120,11 +121,11 @@ func TestExecuteRequest_EmptyPathParam(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/{id}/profile", []string{"id"})
 	cmd.Flags().Set("key", "testkey")
 	// ID not set
 
-	err := ExecuteRequest(cmd, spec, "/user/{id}/profile", &Operation{}, []string{"id"})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -137,10 +138,10 @@ func TestExecuteRequest_NoKeyReturnsError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/profile", nil)
 	// no key flag set, no env var
 
-	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err == nil {
 		t.Error("expected error when no API key is provided, got nil")
 	}
@@ -156,7 +157,7 @@ func TestExecuteRequest_QueryParamPassthrough(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/profile", nil)
 	cmd.Flags().String("limit", "", "Limit")
 	cmd.Flags().String("sort", "", "Sort")
 	cmd.Flags().Set("key", "testkey")
@@ -164,7 +165,7 @@ func TestExecuteRequest_QueryParamPassthrough(t *testing.T) {
 	// sort not set — should not appear
 	// key changed but must be excluded
 
-	err := ExecuteRequest(cmd, spec, "/user/profile", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -188,15 +189,78 @@ func TestExecuteRequest_AllFlag_MultiPage(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cmd, spec := setupTestCmd(ts.URL)
+	cmd, spec, variants := setupTestCmd(ts.URL, "/faction/attacks", nil)
 	cmd.Flags().Set("key", "testkey")
 	cmd.Flags().Set("all", "true")
 
-	err := ExecuteRequest(cmd, spec, "/faction/attacks", &Operation{}, []string{})
+	err := ExecuteRequest(cmd, spec, variants)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if callCount != 2 {
 		t.Errorf("expected 2 HTTP calls for pagination, made %d", callCount)
+	}
+}
+
+// --- Variant selection tests ---
+
+func TestSelectVariant_PrefersParamVariantWhenIDProvided(t *testing.T) {
+	variants := []pathVariant{
+		{path: "/user/profile", pathParams: nil},
+		{path: "/user/{id}/profile", pathParams: []string{"id"}},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("id", "", "ID")
+	cmd.Flags().Set("id", "12345")
+
+	chosen := selectVariant(cmd, variants)
+	if chosen.path != "/user/{id}/profile" {
+		t.Errorf("expected /user/{id}/profile, got %s", chosen.path)
+	}
+}
+
+func TestSelectVariant_FallsBackToNoParamVariant(t *testing.T) {
+	variants := []pathVariant{
+		{path: "/user/{id}/profile", pathParams: []string{"id"}},
+		{path: "/user/profile", pathParams: nil},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("id", "", "ID")
+	// id not set
+
+	chosen := selectVariant(cmd, variants)
+	if chosen.path != "/user/profile" {
+		t.Errorf("expected /user/profile (no-param fallback), got %s", chosen.path)
+	}
+}
+
+func TestSelectVariant_FirstVariantWhenAllHaveMissingParams(t *testing.T) {
+	variants := []pathVariant{
+		{path: "/user/{id}/profile", pathParams: []string{"id"}},
+		{path: "/user/{id}/settings", pathParams: []string{"id"}},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("id", "", "ID")
+	// id not set — both variants have missing params
+
+	chosen := selectVariant(cmd, variants)
+	if chosen.path != "/user/{id}/profile" {
+		t.Errorf("expected first variant fallback, got %s", chosen.path)
+	}
+}
+
+func TestSelectVariant_SingleVariant(t *testing.T) {
+	variants := []pathVariant{
+		{path: "/faction/members", pathParams: nil},
+	}
+
+	cmd := &cobra.Command{}
+
+	chosen := selectVariant(cmd, variants)
+	if chosen.path != "/faction/members" {
+		t.Errorf("expected /faction/members, got %s", chosen.path)
 	}
 }
