@@ -64,25 +64,34 @@ Try BigQuery first. The data lives in `torn-willie.torn_rw_stats.state_changes` 
 
 The table is partitioned by `timestamp` and clustered by `faction_id, member_id`.
 
-Use the BigQuery MCP tools (`mcp__4f9cd1a3-be42-4e88-888a-bc64c2bdee09__execute_sql`) with `projectId: "torn-willie"`.
+Use the `bq` command-line tool. The `bq` CLI is available at `$PATH` (shipped with the Google Cloud SDK). Use these flags for every query:
+
+```bash
+bq query --project_id=torn-willie --use_legacy_sql=false --format=json "<SQL HERE>"
+```
+
+**MCP fallback:** If you have a BigQuery MCP tool available, you may use it instead. If the MCP tool fails or is unavailable, fall back to the `bq` CLI command above.
 
 #### Query: find each member's status at ready time
 
 For each OC member, find the **last status change before `ready_at`** — this tells you their state when the OC went live:
 
-```sql
-SELECT member_name, status_state, status_description, status_travel_type, timestamp
-FROM (
-  SELECT *,
-    ROW_NUMBER() OVER (PARTITION BY member_name ORDER BY timestamp DESC) AS rn
-  FROM `torn-willie.torn_rw_stats.state_changes`
-  WHERE member_name IN ('Name1', 'Name2', 'Name3')
-    AND timestamp <= TIMESTAMP_SECONDS(<ready_at_unix>)
-    AND timestamp >= TIMESTAMP_SECONDS(<ready_at_unix> - 86400)
-)
-WHERE rn = 1
-ORDER BY member_name
+```bash
+bq query --project_id=torn-willie --use_legacy_sql=false --format=json \
+  "SELECT member_name, status_state, status_description, status_travel_type, FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp) as ts
+  FROM (
+    SELECT *,
+      ROW_NUMBER() OVER (PARTITION BY member_name ORDER BY timestamp DESC) AS rn
+    FROM \`torn-willie.torn_rw_stats.state_changes\`
+    WHERE member_name IN ('Name1', 'Name2', 'Name3')
+      AND timestamp <= TIMESTAMP_SECONDS(<ready_at_unix>)
+      AND timestamp >= TIMESTAMP_SECONDS(<ready_at_unix> - 86400)
+  )
+  WHERE rn = 1
+  ORDER BY member_name"
 ```
+
+> **Note:** Always use `FORMAT_TIMESTAMP()` on the `timestamp` column — raw TIMESTAMP values from `bq query --format=json` return epoch milliseconds which are unreadable.
 
 If a member has **no rows** returned, BigQuery doesn't have enough history — their last status change happened before data collection started. Fall back to CSV.
 
@@ -236,12 +245,13 @@ These are one-way times. A member who is Abroad must also *start* the return tri
 Example: if a member's status changed from "Okay" → "Traveling to South Africa" at 01:00, and then "Abroad — In South Africa" at 05:57, that's ~4h 57m, which matches the standard time (4h 57m). So their return will also be standard (4h 57m).
 
 Query to find outbound flight duration:
-```sql
-SELECT timestamp, status_state, status_description
-FROM `torn-willie.torn_rw_stats.state_changes`
-WHERE member_name = 'MemberName'
-ORDER BY timestamp DESC
-LIMIT 20
+```bash
+bq query --project_id=torn-willie --use_legacy_sql=false --format=json \
+  "SELECT member_name, status_state, status_description, FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp) as ts
+  FROM \`torn-willie.torn_rw_stats.state_changes\`
+  WHERE member_name = 'MemberName'
+  ORDER BY timestamp DESC
+  LIMIT 20"
 ```
 Look for the transition from "Traveling" → "Abroad" (arrival) and work backwards to find when they departed ("Okay" → "Traveling").
 
