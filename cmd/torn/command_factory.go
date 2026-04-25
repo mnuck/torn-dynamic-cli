@@ -7,6 +7,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// pathVariant holds one spec path that maps to a single CLI command.
+// Multiple variants can collide (e.g. /user/profile and /user/{id}/profile).
+type pathVariant struct {
+	path       string
+	pathParams []string
+}
+
 func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "torn",
@@ -22,6 +29,15 @@ func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 	cmdCache := make(map[string]*cobra.Command)
 	cmdCache[""] = rootCmd
 
+	// Collect all path variants per leaf command so colliding spec paths
+	// (e.g. /faction/members and /faction/{id}/members) are merged.
+	// Map from leaf command pointer to its accumulated variants.
+	type leafEntry struct {
+		cmd     *cobra.Command
+		variants []pathVariant
+	}
+	var leaves []leafEntry
+
 	for path, item := range spec.Paths {
 		// Only handle GET for now
 		if item.Get == nil {
@@ -30,15 +46,7 @@ func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 
 		// Split path into segments using "/"
 		// e.g. "/user/{id}/profile" -> ["user", "{id}", "profile"]
-		// We will ignore {id} segments for command structure, and treat them as required flags or arguments later.
-		// Actually, for Torn API v2:
-		// /user/profile
-		// /user/{id}/profile
-		// These might conflict if we map both to `torn user profile`.
-
-		// Strategy:
-		// Use the literal segments as command names.
-		// If a segment is {id}, we treat it as a parameter, NOT a command node, effectively collapsing it.
+		// Path-param segments ({…}) are collapsed; they become flags instead.
 		// So /user/{id}/profile -> `torn user profile --id ...`
 		// /user/profile -> `torn user profile` (implicitly current user)
 
@@ -48,7 +56,6 @@ func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 
 		for _, p := range parts {
 			if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
-				// It's a path param
 				paramName := strings.Trim(p, "{}")
 				pathParams = append(pathParams, paramName)
 			} else {
@@ -80,41 +87,25 @@ func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 				parent = newCmd
 			}
 
-			// If this is the leaf (last part), attach the operation
+			// If this is the leaf (last part), collect the variant and register flags
 			if i == len(commandParts)-1 {
-				// This is the command that executes request
-				// We need to capture the operation and path params in the closure or struct
+				leafCmd := parent
 				op := item.Get
-				fullPath := path
-				pParams := pathParams
 
-				parent.RunE = func(cmd *cobra.Command, args []string) error {
-					// Logic to execute request
-					return ExecuteRequest(cmd, spec, fullPath, op, pParams)
-				}
-
-				// Register Flags
+				// Register Flags (idempotent via nil-check)
 				// 1. Path Params (e.g. --id)
-				for _, pp := range pParams {
-					if parent.Flags().Lookup(pp) == nil {
-						parent.Flags().String(pp, "", fmt.Sprintf("Path parameter: %s", pp))
+				for _, pp := range pathParams {
+					if leafCmd.Flags().Lookup(pp) == nil {
+						leafCmd.Flags().String(pp, "", fmt.Sprintf("Path parameter: %s", pp))
 					}
 				}
 
 				// 2. Query Params from Operation
 				for _, paramOrRef := range op.Parameters {
-					// Start simplistic: we assume inline parameters or we need a resolver.
-					// For now, let's assume if it has a Name, use it.
-					// If it's a ref, we skip (MVP limitation - we need to resolve refs for full support)
-					// The loader Struct has a Ref field.
-					// Resolving standard refs is complex.
-					// HOWEVER, `go-swagger` failed because of this. Python solution worked because we ignored implementation details.
-
-					// Let's rely on just Name if present. If Ref, we need to lookup in Components.
 					p := ResolveParameter(spec, paramOrRef)
 					if p.Name != "" && p.In == "query" {
-						if parent.Flags().Lookup(p.Name) == nil {
-							parent.Flags().String(p.Name, "", p.Description)
+						if leafCmd.Flags().Lookup(p.Name) == nil {
+							leafCmd.Flags().String(p.Name, "", p.Description)
 						}
 					}
 				}
@@ -123,17 +114,37 @@ func BuildCommands(spec *OpenAPISpec) *cobra.Command {
 				for _, paramOrRef := range item.Parameters {
 					p := ResolveParameter(spec, paramOrRef)
 					if p.Name != "" && p.In == "query" {
-						if parent.Flags().Lookup(p.Name) == nil {
-							parent.Flags().String(p.Name, "", p.Description)
+						if leafCmd.Flags().Lookup(p.Name) == nil {
+							leafCmd.Flags().String(p.Name, "", p.Description)
 						}
 					}
 				}
 
 				// 4. Auto-Paging flag
-				if parent.Flags().Lookup("all") == nil {
-					parent.Flags().Bool("all", false, "Automatically fetch all pages by following _metadata.next")
+				if leafCmd.Flags().Lookup("all") == nil {
+					leafCmd.Flags().Bool("all", false, "Automatically fetch all pages by following _metadata.next")
 				}
+
+				leaves = append(leaves, leafEntry{
+					cmd: leafCmd,
+					variants: []pathVariant{{
+						path:       path,
+						pathParams: pathParams,
+					}},
+				})
 			}
+		}
+	}
+
+	// Merge variants for colliding commands (same leaf command pointer).
+	// Then set RunE once per leaf, selecting the correct variant at runtime.
+	variantMap := make(map[*cobra.Command][]pathVariant)
+	for _, le := range leaves {
+		variantMap[le.cmd] = append(variantMap[le.cmd], le.variants...)
+	}
+	for cmd, variants := range variantMap {
+		cmd.RunE = func(c *cobra.Command, args []string) error {
+			return ExecuteRequest(c, spec, variants)
 		}
 	}
 

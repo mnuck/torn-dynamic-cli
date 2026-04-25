@@ -13,7 +13,42 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, rawPath string, op *Operation, pathParams []string) error {
+// selectVariant picks the best path variant based on which path-param flags
+// the user actually provided.  Prefers a variant with path params whose flags
+// are all set; falls back to the no-param variant; ultimately falls back to
+// the first variant (the executor strips missing params gracefully).
+func selectVariant(cmd *cobra.Command, variants []pathVariant) pathVariant {
+	// 1. Prefer a variant that has path params AND all of them are provided.
+	for _, v := range variants {
+		if len(v.pathParams) == 0 {
+			continue
+		}
+		allProvided := true
+		for _, pp := range v.pathParams {
+			val, _ := cmd.Flags().GetString(pp)
+			if val == "" {
+				allProvided = false
+				break
+			}
+		}
+		if allProvided {
+			return v
+		}
+	}
+	// 2. Fallback: prefer the variant with no path params (implicit "current user").
+	for _, v := range variants {
+		if len(v.pathParams) == 0 {
+			return v
+		}
+	}
+	// 3. Last resort: first variant.
+	return variants[0]
+}
+
+func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, variants []pathVariant) error {
+	variant := selectVariant(cmd, variants)
+	rawPath := variant.path
+	pathParams := variant.pathParams
 	// 1. Construct URL
 	// Replace path params
 	finalPath := rawPath
