@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 type freeloader struct {
@@ -93,18 +93,19 @@ func runFreeloadersReport(apiKey string, hours int) error {
 	memberData := make(map[int]memberInfo)
 
 	for _, page := range membersPages {
-		members := gjson.GetBytes(page, "members").Array()
-		for _, m := range members {
-			id := int(m.Get("id").Int())
-			name := m.Get("name").String()
-			nameToID[name] = id
-			memberData[id] = memberInfo{
-				ID:            id,
-				Name:          name,
-				Level:         int(m.Get("level").Int()),
-				Position:      m.Get("position").String(),
-				DaysInFaction: int(m.Get("days_in_faction").Int()),
-				IsInOC:        m.Get("is_in_oc").Bool(),
+		var resp MembersPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, m := range resp.Members {
+			nameToID[m.Name] = m.ID
+			memberData[m.ID] = memberInfo{
+				ID:            m.ID,
+				Name:          m.Name,
+				Level:         m.Level,
+				Position:      m.Position,
+				DaysInFaction: m.DaysInFaction,
+				IsInOC:        m.IsInOC,
 			}
 		}
 	}
@@ -123,12 +124,13 @@ func runFreeloadersReport(apiKey string, hours int) error {
 	xanaxUsage := make(map[string]int)
 
 	for _, page := range newsPages {
-		news := gjson.GetBytes(page, "news").Array()
-		for _, item := range news {
-			text := item.Get("text").String()
-			if matches := xanaxPattern.FindStringSubmatch(text); matches != nil {
-				username := matches[1]
-				xanaxUsage[username]++
+		var resp NewsPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, item := range resp.News {
+			if matches := xanaxPattern.FindStringSubmatch(item.Text); matches != nil {
+				xanaxUsage[matches[1]]++
 			}
 		}
 	}
@@ -144,11 +146,14 @@ func runFreeloadersReport(apiKey string, hours int) error {
 	ocParticipants := make(map[int]bool)
 
 	for _, page := range activePages {
-		crimes := gjson.GetBytes(page, "crimes").Array()
-		for _, crime := range crimes {
-			for _, slot := range crime.Get("slots").Array() {
-				if uid := slot.Get("user.id").Int(); uid > 0 {
-					ocParticipants[int(uid)] = true
+		var resp CrimesPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, crime := range resp.Crimes {
+			for _, slot := range crime.Slots {
+				if slot.User != nil && slot.User.ID > 0 {
+					ocParticipants[int(slot.User.ID)] = true
 				}
 			}
 		}
@@ -167,15 +172,17 @@ func runFreeloadersReport(apiKey string, hours int) error {
 	}
 
 	for _, page := range completedPages {
-		crimes := gjson.GetBytes(page, "crimes").Array()
-		for _, crime := range crimes {
-			executedAt := crime.Get("executed_at").Int()
-			if executedAt < from {
+		var resp CrimesPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, crime := range resp.Crimes {
+			if crime.ExecutedAt < from {
 				continue // completed before our actual lookback window
 			}
-			for _, slot := range crime.Get("slots").Array() {
-				if uid := slot.Get("user.id").Int(); uid > 0 {
-					ocParticipants[int(uid)] = true
+			for _, slot := range crime.Slots {
+				if slot.User != nil && slot.User.ID > 0 {
+					ocParticipants[int(slot.User.ID)] = true
 				}
 			}
 		}
@@ -214,4 +221,3 @@ func runFreeloadersReport(apiKey string, hours int) error {
 
 	return nil
 }
-

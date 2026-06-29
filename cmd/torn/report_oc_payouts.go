@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 func newOCPayoutsCmd() *cobra.Command {
@@ -53,51 +53,54 @@ func runOCPayoutsReport(apiKey string) error {
 		return fmt.Errorf("failed to fetch completed crimes: %w", err)
 	}
 
+	var page CrimesPage
+	if err := json.Unmarshal(body, &page); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
 	var unpaid []unpaidOC
 
-	crimes := gjson.GetBytes(body, "crimes").Array()
-	for _, c := range crimes {
-		rewards := c.Get("rewards")
-		if !rewards.Exists() {
+	for _, c := range page.Crimes {
+		if c.Rewards == nil {
 			continue
 		}
 
 		// scope=0 means this OC spawns a higher-level crime rather than paying out.
 		// These are intentionally $0 and should be excluded from payout tracking.
-		scope := rewards.Get("scope").Int()
-		if scope == 0 {
+		if c.Rewards.Scope == 0 {
 			continue
 		}
 
-		// Already paid out — skip
-		if rewards.Get("payout").Exists() && rewards.Get("payout").Type != gjson.Null {
+		// Already paid out — skip (payout field is non-null when paid)
+		if len(c.Rewards.Payout) > 0 && string(c.Rewards.Payout) != "null" {
 			continue
 		}
 
-		executedAt := c.Get("executed_at").Int()
-		if executedAt == 0 {
+		if c.ExecutedAt == 0 {
 			continue // not yet executed (still planning/running)
 		}
 
-		readyAt := c.Get("ready_at").Int()
-
 		var slots []ocSlot
-		for _, s := range c.Get("slots").Array() {
-			slots = append(slots, ocSlot{
-				Position: s.Get("position_info.label").String(),
-				UserID:   s.Get("user.id").Int(),
-			})
+		for _, s := range c.Slots {
+			slot := ocSlot{}
+			if s.PositionInfo != nil {
+				slot.Position = s.PositionInfo.Label
+			}
+			if s.User != nil {
+				slot.UserID = s.User.ID
+			}
+			slots = append(slots, slot)
 		}
 
 		unpaid = append(unpaid, unpaidOC{
-			ID:         c.Get("id").Int(),
-			Name:       c.Get("name").String(),
-			ReadyAt:    readyAt,
-			ExecutedAt: executedAt,
-			DelaySec:   executedAt - readyAt,
-			Money:      rewards.Get("money").Int(),
-			Respect:    rewards.Get("respect").Int(),
-			Status:     c.Get("status").String(),
+			ID:         c.ID,
+			Name:       c.Name,
+			ReadyAt:    c.ReadyAt,
+			ExecutedAt: c.ExecutedAt,
+			DelaySec:   c.ExecutedAt - c.ReadyAt,
+			Money:      c.Rewards.Money,
+			Respect:    c.Rewards.Respect,
+			Status:     c.Status,
 			Slots:      slots,
 		})
 	}

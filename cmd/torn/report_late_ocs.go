@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 func newLateOCsCmd() *cobra.Command {
@@ -82,60 +82,60 @@ func runLateOCsReport(apiKey string, hours int) error {
 	cutoff := now - int64(hours)*3600
 
 	for _, page := range allCrimeData {
-		crimes := gjson.GetBytes(page, "crimes").Array()
-		for _, c := range crimes {
-			status := c.Get("status").String()
-			if status == "Recruiting" {
+		var resp CrimesPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, c := range resp.Crimes {
+			if c.Status == "Recruiting" {
+				continue
+			}
+			if c.ReadyAt == 0 {
 				continue
 			}
 
-			readyAt := c.Get("ready_at").Int()
-			if readyAt == 0 {
-				continue
-			}
-
-			executedAt := c.Get("executed_at").Int()
-
-			if executedAt > 0 {
+			if c.ExecutedAt > 0 {
 				// Historical: was it meaningfully late and within our lookback window?
 				// Require at least 5 minutes of delay to filter out normal execution jitter.
-				if hours == 0 || readyAt >= now || (executedAt-readyAt) < 300 || readyAt < cutoff {
+				if hours == 0 || c.ReadyAt >= now || (c.ExecutedAt-c.ReadyAt) < 300 || c.ReadyAt < cutoff {
 					continue
 				}
 				loc := lateOC{
-					ID:         c.Get("id").Int(),
-					Name:       c.Get("name").String(),
-					ReadyAt:    readyAt,
-					ExecutedAt: executedAt,
-					DelaySec:   executedAt - readyAt,
+					ID:         c.ID,
+					Name:       c.Name,
+					ReadyAt:    c.ReadyAt,
+					ExecutedAt: c.ExecutedAt,
+					DelaySec:   c.ExecutedAt - c.ReadyAt,
 				}
-				for _, s := range c.Get("slots").Array() {
-					slot := ocSlot{
-						Position:  s.Get("position_info.label").String(),
-						UserID:    s.Get("user.id").Int(),
-						ItemAvail: formatBool(s.Get("item_requirement.is_available")),
+				for _, s := range c.Slots {
+					slot := ocSlot{ItemAvail: formatItemAvail(s.ItemRequirement)}
+					if s.PositionInfo != nil {
+						slot.Position = s.PositionInfo.Label
+					}
+					if s.User != nil {
+						slot.UserID = s.User.ID
 					}
 					loc.Slots = append(loc.Slots, slot)
 				}
 				lateOCs = append(lateOCs, loc)
 			} else {
 				// Currently late: ready_at in the past, not executed
-				if readyAt >= now {
+				if c.ReadyAt >= now {
 					continue
 				}
 				loc := lateOC{
-					ID:       c.Get("id").Int(),
-					Name:     c.Get("name").String(),
-					ReadyAt:  readyAt,
-					DelaySec: now - readyAt,
+					ID:       c.ID,
+					Name:     c.Name,
+					ReadyAt:  c.ReadyAt,
+					DelaySec: now - c.ReadyAt,
 				}
-
-				// Parse slots
-				for _, s := range c.Get("slots").Array() {
-					slot := ocSlot{
-						Position:  s.Get("position_info.label").String(),
-						UserID:    s.Get("user.id").Int(),
-						ItemAvail: formatBool(s.Get("item_requirement.is_available")),
+				for _, s := range c.Slots {
+					slot := ocSlot{ItemAvail: formatItemAvail(s.ItemRequirement)}
+					if s.PositionInfo != nil {
+						slot.Position = s.PositionInfo.Label
+					}
+					if s.User != nil {
+						slot.UserID = s.User.ID
 					}
 					loc.Slots = append(loc.Slots, slot)
 				}
@@ -200,20 +200,26 @@ func lookupSlotProfiles(apiKey string, slots []ocSlot) {
 				return
 			}
 
-			profile := gjson.GetBytes(body, "profile")
-			name := profile.Get("name").String()
-			state := profile.Get("status.state").String()
-			desc := profile.Get("status.description").String()
-			lastAction := profile.Get("last_action.relative").String()
-
-			blocker := state != "Okay"
+			var resp ProfilePage
+			if err := json.Unmarshal(body, &resp); err != nil || resp.Profile == nil {
+				return
+			}
+			p := resp.Profile
+			state, desc, lastAction := "", "", ""
+			if p.Status != nil {
+				state = p.Status.State
+				desc = p.Status.Description
+			}
+			if p.LastAction != nil {
+				lastAction = p.LastAction.Relative
+			}
 
 			mu.Lock()
-			slots[idx].UserName = name
+			slots[idx].UserName = p.Name
 			slots[idx].StatusState = state
 			slots[idx].StatusDesc = desc
 			slots[idx].LastAction = lastAction
-			slots[idx].IsBlocker = blocker
+			slots[idx].IsBlocker = state != "Okay"
 			mu.Unlock()
 		}(i)
 	}
@@ -280,16 +286,6 @@ func formatDuration(seconds int64) string {
 	return fmt.Sprintf("%dh %dm", hours, mins)
 }
 
-func formatBool(result gjson.Result) string {
-	if !result.Exists() {
-		return "n/a"
-	}
-	if result.Bool() {
-		return "✓"
-	}
-	return "✗"
-}
-
 // fetchSinglePage makes a single authenticated GET request.
 func fetchSinglePage(apiKey string, url string) ([]byte, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -304,7 +300,7 @@ func fetchSinglePage(apiKey string, url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -315,8 +311,9 @@ func fetchSinglePage(apiKey string, url string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
-	if gjson.GetBytes(body, "error").Exists() {
-		return nil, fmt.Errorf("API error: %s", gjson.GetBytes(body, "error.error").String())
+	var errEnv apiErrorEnvelope
+	if err := json.Unmarshal(body, &errEnv); err == nil && errEnv.Error != nil {
+		return nil, fmt.Errorf("API error: %s", errEnv.Error.Error)
 	}
 
 	return body, nil

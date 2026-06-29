@@ -10,8 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/tidwall/gjson"
-)
+	)
 
 // selectVariant picks the best path variant based on which path-param flags
 // the user actually provided.  Prefers a variant with path params whose flags
@@ -218,13 +217,18 @@ func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, variants []pathVarian
 		}
 
 		// Determine next page URL.
-		nextLink := gjson.GetBytes(body, "_metadata.links.next").String()
-		if nextLink == "" {
-			nextLink = gjson.GetBytes(body, "_metadata.next").String()
-		}
-		if nextLink == "" {
-			// Fallback to _metadata.links.prev (Events pagination)
-			nextLink = gjson.GetBytes(body, "_metadata.links.prev").String()
+		var meta apiPageMeta
+		var nextLink string
+		if err := json.Unmarshal(body, &meta); err == nil && meta.Metadata != nil {
+			if meta.Metadata.Links != nil {
+				nextLink = meta.Metadata.Links.Next
+			}
+			if nextLink == "" {
+				nextLink = meta.Metadata.Next
+			}
+			if nextLink == "" && meta.Metadata.Links != nil {
+				nextLink = meta.Metadata.Links.Prev
+			}
 		}
 
 		if nextLink == "" {

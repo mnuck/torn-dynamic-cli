@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 func newHitsCmd() *cobra.Command {
@@ -49,23 +49,28 @@ type hitRecord struct {
 func filterHits(pages [][]byte, name string) []hitRecord {
 	var hits []hitRecord
 	for _, page := range pages {
-		attacks := gjson.GetBytes(page, "attacks").Array()
-		for _, a := range attacks {
-			if a.Get("attacker.name").String() != name {
+		var resp AttacksPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, a := range resp.Attacks {
+			if a.Attacker == nil || a.Attacker.Name != name {
 				continue
 			}
-			ts := a.Get("ended").Int()
-			code := a.Get("code").String()
 			link := ""
-			if code != "" {
-				link = fmt.Sprintf("https://www.torn.com/loader.php?sid=attackLog&ID=%s", code)
+			if a.Code != "" {
+				link = fmt.Sprintf("https://www.torn.com/loader.php?sid=attackLog&ID=%s", a.Code)
+			}
+			defender := ""
+			if a.Defender != nil {
+				defender = a.Defender.Name
 			}
 			hits = append(hits, hitRecord{
-				Timestamp: ts,
-				DateTime:  time.Unix(ts, 0).UTC().Format("2006-01-02 15:04 UTC"),
-				Result:    a.Get("result").String(),
-				Defender:  a.Get("defender.name").String(),
-				Respect:   a.Get("respect_gain").Float(),
+				Timestamp: a.Ended,
+				DateTime:  time.Unix(a.Ended, 0).UTC().Format("2006-01-02 15:04 UTC"),
+				Result:    a.Result,
+				Defender:  defender,
+				Respect:   a.RespectGain,
 				Link:      link,
 			})
 		}
