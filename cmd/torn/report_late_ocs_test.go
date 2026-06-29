@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/tidwall/gjson"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -33,23 +31,18 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestFormatBool(t *testing.T) {
-	tests := []struct {
-		json string
-		path string
-		want string
-	}{
-		{`{"is_available": true}`, "is_available", "✓"},
-		{`{"is_available": false}`, "is_available", "✗"},
-		{`{}`, "is_available", "n/a"},
-	}
+func TestFormatItemAvail(t *testing.T) {
+	avail := &APIItemRequirement{IsAvailable: true}
+	unavail := &APIItemRequirement{IsAvailable: false}
 
-	for _, tt := range tests {
-		result := gjson.Get(tt.json, tt.path)
-		got := formatBool(result)
-		if got != tt.want {
-			t.Errorf("formatBool(%v) = %q, want %q", result, got, tt.want)
-		}
+	if got := formatItemAvail(avail); got != "✓" {
+		t.Errorf("formatItemAvail(true) = %q, want %q", got, "✓")
+	}
+	if got := formatItemAvail(unavail); got != "✗" {
+		t.Errorf("formatItemAvail(false) = %q, want %q", got, "✗")
+	}
+	if got := formatItemAvail(nil); got != "n/a" {
+		t.Errorf("formatItemAvail(nil) = %q, want %q", got, "n/a")
 	}
 }
 
@@ -67,8 +60,9 @@ func TestFetchSinglePage_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !gjson.GetBytes(body, "crimes").Exists() {
-		t.Error("expected 'crimes' key in response")
+	var resp CrimesPage
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Errorf("expected valid JSON with 'crimes' key: %v", err)
 	}
 }
 
@@ -113,18 +107,19 @@ func TestRunLateOCsReport_NoLateOCs(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Patch the base URL by using fetchSinglePage directly
 	body, err := fetchSinglePage("testkey", ts.URL+"/faction/crimes")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Verify the recruiting crime is present but would be filtered
-	crimesArr := gjson.GetBytes(body, "crimes").Array()
-	if len(crimesArr) != 1 {
-		t.Errorf("expected 1 crime, got %d", len(crimesArr))
+	var resp CrimesPage
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
 	}
-	if crimesArr[0].Get("status").String() != "Recruiting" {
+	if len(resp.Crimes) != 1 {
+		t.Errorf("expected 1 crime, got %d", len(resp.Crimes))
+	}
+	if resp.Crimes[0].Status != "Recruiting" {
 		t.Error("expected Recruiting status")
 	}
 }
@@ -208,24 +203,20 @@ func TestRunLateOCsReport_HistoricalLateCrime(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Fetch both pages like runLateOCsReport does
 	planBody, _ := fetchSinglePage("testkey", ts.URL+"/planning")
 	compBody, _ := fetchSinglePage("testkey", ts.URL+"/completed")
 
-	// Parse crimes and apply filtering logic
 	var lateCount, filteredCount int
-	for _, page := range [][]byte{planBody, compBody} {
-		crimes := gjson.GetBytes(page, "crimes").Array()
-		for _, c := range crimes {
-			if c.Get("status").String() == "Recruiting" {
+	for _, raw := range [][]byte{planBody, compBody} {
+		var resp CrimesPage
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			continue
+		}
+		for _, c := range resp.Crimes {
+			if c.Status == "Recruiting" || c.ReadyAt == 0 || c.ExecutedAt == 0 {
 				continue
 			}
-			readyAt := c.Get("ready_at").Int()
-			executedAt := c.Get("executed_at").Int()
-			if readyAt == 0 || executedAt == 0 {
-				continue
-			}
-			delay := executedAt - readyAt
+			delay := c.ExecutedAt - c.ReadyAt
 			if delay >= 300 {
 				lateCount++
 			} else {
@@ -243,7 +234,6 @@ func TestRunLateOCsReport_HistoricalLateCrime(t *testing.T) {
 }
 
 func TestFetchSinglePage_ProfileResponse(t *testing.T) {
-	// Test that profile responses are correctly parsed for blocker detection
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		profile := map[string]interface{}{
 			"profile": map[string]interface{}{
@@ -266,19 +256,22 @@ func TestFetchSinglePage_ProfileResponse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	name := gjson.GetBytes(body, "profile.name").String()
-	state := gjson.GetBytes(body, "profile.status.state").String()
+	var resp ProfilePage
+	if err := json.Unmarshal(body, &resp); err != nil || resp.Profile == nil {
+		t.Fatalf("failed to parse profile response: %v", err)
+	}
 
-	if name != "Firethem" {
-		t.Errorf("expected name Firethem, got %s", name)
+	if resp.Profile.Name != "Firethem" {
+		t.Errorf("expected name Firethem, got %s", resp.Profile.Name)
+	}
+	state := ""
+	if resp.Profile.Status != nil {
+		state = resp.Profile.Status.State
 	}
 	if state != "Abroad" {
 		t.Errorf("expected state Abroad, got %s", state)
 	}
-
-	// Verify blocker detection logic
-	isBlocker := state != "Okay"
-	if !isBlocker {
+	if state == "Okay" {
 		t.Error("Abroad status should be detected as blocker")
 	}
 }

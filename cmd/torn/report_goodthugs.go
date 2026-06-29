@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 type goodThug struct {
@@ -55,6 +55,7 @@ and are ready to be promoted to Henchman.`,
 // runGoodThugsReport finds Thugs who have completed at least one OC within the lookback window.
 func runGoodThugsReport(apiKey string, days int) error {
 	from := time.Now().Unix() - int64(days)*24*3600
+
 	// Step 1: Fetch faction members, filter to Thugs
 	fmt.Fprintf(os.Stderr, "Fetching faction members...\n")
 	membersPages, err := fetchAllPages(apiKey, "https://api.torn.com/v2/faction/members")
@@ -64,18 +65,21 @@ func runGoodThugsReport(apiKey string, days int) error {
 
 	var thugs []memberInfo
 	for _, page := range membersPages {
-		members := gjson.GetBytes(page, "members").Array()
-		for _, m := range members {
-			if m.Get("position").String() != "Thug" {
+		var resp MembersPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, m := range resp.Members {
+			if m.Position != "Thug" {
 				continue
 			}
 			thugs = append(thugs, memberInfo{
-				ID:            int(m.Get("id").Int()),
-				Name:          m.Get("name").String(),
-				Level:         int(m.Get("level").Int()),
-				Position:      m.Get("position").String(),
-				DaysInFaction: int(m.Get("days_in_faction").Int()),
-				IsInOC:        m.Get("is_in_oc").Bool(),
+				ID:            m.ID,
+				Name:          m.Name,
+				Level:         m.Level,
+				Position:      m.Position,
+				DaysInFaction: m.DaysInFaction,
+				IsInOC:        m.IsInOC,
 			})
 		}
 	}
@@ -90,11 +94,14 @@ func runGoodThugsReport(apiKey string, days int) error {
 
 	ocCount := make(map[int]int) // user ID -> number of completed OCs
 	for _, page := range completedPages {
-		crimes := gjson.GetBytes(page, "crimes").Array()
-		for _, crime := range crimes {
-			for _, slot := range crime.Get("slots").Array() {
-				if uid := slot.Get("user.id").Int(); uid > 0 {
-					ocCount[int(uid)]++
+		var resp CrimesPage
+		if err := json.Unmarshal(page, &resp); err != nil {
+			continue
+		}
+		for _, crime := range resp.Crimes {
+			for _, slot := range crime.Slots {
+				if slot.User != nil && slot.User.ID > 0 {
+					ocCount[int(slot.User.ID)]++
 				}
 			}
 		}

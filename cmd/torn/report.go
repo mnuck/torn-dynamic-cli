@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 )
 
 // NewReportCmd returns a parent "report" command with subcommands attached.
@@ -82,16 +82,26 @@ func fetchAllPages(apiKey string, startURL string) ([][]byte, error) {
 		}
 
 		// Torn API sometimes returns 200 with an error body
-		if gjson.GetBytes(body, "error").Exists() {
-			return nil, fmt.Errorf("API error: %s", gjson.GetBytes(body, "error.error").String())
+		var errEnv apiErrorEnvelope
+		if err := json.Unmarshal(body, &errEnv); err == nil && errEnv.Error != nil {
+			return nil, fmt.Errorf("API error: %s", errEnv.Error.Error)
 		}
 
 		pages = append(pages, body)
 
 		// Follow next page link; fall back to prev for endpoints that paginate backwards.
-		nextURL = gjson.GetBytes(body, "_metadata.links.next").String()
-		if nextURL == "" {
-			nextURL = gjson.GetBytes(body, "_metadata.links.prev").String()
+		nextURL = ""
+		var meta apiPageMeta
+		if err := json.Unmarshal(body, &meta); err == nil && meta.Metadata != nil {
+			if meta.Metadata.Links != nil {
+				nextURL = meta.Metadata.Links.Next
+			}
+			if nextURL == "" {
+				nextURL = meta.Metadata.Next
+			}
+			if nextURL == "" && meta.Metadata.Links != nil {
+				nextURL = meta.Metadata.Links.Prev
+			}
 		}
 
 		// No sleep needed: Torn allows 100 req/min and natural HTTP latency
