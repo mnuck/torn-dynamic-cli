@@ -29,9 +29,10 @@ func main() {
 	freeloaderService := services.NewFreeloaderService(factionRepo)
 	hitService := services.NewHitService(httpClient)
 	goodThugService := services.NewGoodThugService(factionRepo)
+	ocPayoutService := services.NewOCPayoutService(factionRepo)
 
 	rootCmd := BuildCommands(spec)
-	rootCmd.AddCommand(NewReportCmd(freeloaderService, hitService, goodThugService))
+	rootCmd.AddCommand(NewReportCmd(freeloaderService, hitService, goodThugService, ocPayoutService, httpClient))
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

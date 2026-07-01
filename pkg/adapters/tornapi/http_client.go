@@ -173,13 +173,23 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 	for nextURL != "" {
 		var resp struct {
 			Crimes []struct {
-				ID         int       `json:"id"`
-				Name       string    `json:"name"`
-				Difficulty int       `json:"difficulty"`
-				Status     string    `json:"status"`
-				CreatedAt  time.Time `json:"created_at"`
-				ExecutedAt *time.Time `json:"executed_at"`
-				Slots      []struct {
+				ID         int    `json:"id"`
+				Name       string `json:"name"`
+				Difficulty int    `json:"difficulty"`
+				Status     string `json:"status"`
+				ReadyAt    int64  `json:"ready_at"`
+				ExecutedAt int64  `json:"executed_at"`
+				ExpiredAt  int64  `json:"expired_at"`
+				Rewards    *struct {
+					Money   int64           `json:"money"`
+					Respect int64           `json:"respect"`
+					Scope   int             `json:"scope"`
+					Payout  json.RawMessage `json:"payout"`
+				} `json:"rewards"`
+				Slots []struct {
+					PositionInfo *struct {
+						Label string `json:"label"`
+					} `json:"position_info"`
 					User *struct {
 						ID int `json:"id"`
 					} `json:"user"`
@@ -199,19 +209,34 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 				Name:       cr.Name,
 				Difficulty: cr.Difficulty,
 				Status:     cr.Status,
-				CreatedAt:  cr.CreatedAt,
-				ExecutedAt: cr.ExecutedAt,
+				ReadyAt:    time.Unix(cr.ReadyAt, 0),
 			}
-			if cr.ExecutedAt != nil {
-				crime.ExecutedAt = cr.ExecutedAt
+			if cr.ExecutedAt > 0 {
+				t := time.Unix(cr.ExecutedAt, 0)
+				crime.ExecutedAt = &t
+			}
+			if cr.ExpiredAt > 0 {
+				t := time.Unix(cr.ExpiredAt, 0)
+				crime.ExpiredAt = &t
+			}
+			if cr.Rewards != nil {
+				paid := len(cr.Rewards.Payout) > 0 && string(cr.Rewards.Payout) != "null"
+				crime.Rewards = domain.CrimeRewards{
+					Money:   int(cr.Rewards.Money),
+					Respect: int(cr.Rewards.Respect),
+					Scope:   cr.Rewards.Scope,
+					Paid:    paid,
+				}
 			}
 			for _, s := range cr.Slots {
-				if s.User != nil && s.User.ID > 0 {
-					crime.Slots = append(crime.Slots, domain.CrimeSlot{
-						Position: "Unknown", // Simplified for MVP
-						User: &domain.User{ID: s.User.ID},
-					})
+				slot := domain.CrimeSlot{}
+				if s.PositionInfo != nil {
+					slot.Label = s.PositionInfo.Label
 				}
+				if s.User != nil && s.User.ID > 0 {
+					slot.User = &domain.User{ID: s.User.ID}
+				}
+				crime.Slots = append(crime.Slots, slot)
 			}
 			allCrimes = append(allCrimes, crime)
 		}

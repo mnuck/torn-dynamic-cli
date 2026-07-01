@@ -74,6 +74,8 @@ type Crime struct {
 type CrimeRewards struct {
 	Money   int
 	Respect int
+	Scope   int  // 0 means stepping-stone (spawns higher OC, no direct payout)
+	Paid    bool // true if payout has already been made
 	Items   []string
 }
 

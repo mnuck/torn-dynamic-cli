@@ -1,17 +1,18 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
-	"sort"
+	"sync"
 	"time"
 
+	"github.com/mnuck/torn-dynamic-cli/pkg/domain/services"
+	"github.com/mnuck/torn-dynamic-cli/pkg/ports"
 	"github.com/spf13/cobra"
 )
 
-func newOCPayoutsCmd() *cobra.Command {
-	cmd := &cobra.Command{
+func newOCPayoutsCmd(svc *services.OCPayoutService, client ports.TornClient) *cobra.Command {
+	return &cobra.Command{
 		Use:   "oc-payouts",
 		Short: "List completed OCs awaiting payout",
 		Long: `Shows all completed OCs that have not yet been paid out.
@@ -23,86 +24,15 @@ normal slider percentage) or whether the OC was delayed more than 30 minutes
 OCs with scope=0 are skipped — these are stepping-stone crimes that spawn a
 higher-level OC rather than paying out directly.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			apiKey, err := getAPIKey(cmd)
-			if err != nil {
-				return err
-			}
-			return runOCPayoutsReport(apiKey)
+			return runOCPayoutsReport(cmd.Context(), svc, client)
 		},
 	}
-	return cmd
 }
 
-type unpaidOC struct {
-	ID         int64
-	Name       string
-	ReadyAt    int64
-	ExecutedAt int64
-	DelaySec   int64
-	Money      int64
-	Respect    int64
-	Status     string
-	Slots      []ocSlot
-}
-
-func runOCPayoutsReport(apiKey string) error {
-	fmt.Fprintf(os.Stderr, "Fetching completed crimes...\n")
-
-	body, err := fetchSinglePage(apiKey, "https://api.torn.com/v2/faction/crimes?cat=completed")
+func runOCPayoutsReport(ctx context.Context, svc *services.OCPayoutService, client ports.TornClient) error {
+	unpaid, err := svc.GetUnpaidOCs(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to fetch completed crimes: %w", err)
-	}
-
-	var page CrimesPage
-	if err := json.Unmarshal(body, &page); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	var unpaid []unpaidOC
-
-	for _, c := range page.Crimes {
-		if c.Rewards == nil {
-			continue
-		}
-
-		// scope=0 means this OC spawns a higher-level crime rather than paying out.
-		// These are intentionally $0 and should be excluded from payout tracking.
-		if c.Rewards.Scope == 0 {
-			continue
-		}
-
-		// Already paid out — skip (payout field is non-null when paid)
-		if len(c.Rewards.Payout) > 0 && string(c.Rewards.Payout) != "null" {
-			continue
-		}
-
-		if c.ExecutedAt == 0 {
-			continue // not yet executed (still planning/running)
-		}
-
-		var slots []ocSlot
-		for _, s := range c.Slots {
-			slot := ocSlot{}
-			if s.PositionInfo != nil {
-				slot.Position = s.PositionInfo.Label
-			}
-			if s.User != nil {
-				slot.UserID = s.User.ID
-			}
-			slots = append(slots, slot)
-		}
-
-		unpaid = append(unpaid, unpaidOC{
-			ID:         c.ID,
-			Name:       c.Name,
-			ReadyAt:    c.ReadyAt,
-			ExecutedAt: c.ExecutedAt,
-			DelaySec:   c.ExecutedAt - c.ReadyAt,
-			Money:      c.Rewards.Money,
-			Respect:    c.Rewards.Respect,
-			Status:     c.Status,
-			Slots:      slots,
-		})
+		return fmt.Errorf("failed to fetch unpaid OCs: %w", err)
 	}
 
 	if len(unpaid) == 0 {
@@ -110,56 +40,48 @@ func runOCPayoutsReport(apiKey string) error {
 		return nil
 	}
 
-	// Sort by executed_at ascending (oldest first — pay those first)
-	sort.Slice(unpaid, func(i, j int) bool {
-		return unpaid[i].ExecutedAt < unpaid[j].ExecutedAt
-	})
+	// Resolve slot names concurrently
+	resolveNames(ctx, unpaid, client)
 
-	// Look up member names in parallel for all OCs
-	fmt.Fprintf(os.Stderr, "Looking up member names...\n")
-	for i := range unpaid {
-		if len(unpaid[i].Slots) > 0 {
-			lookupSlotProfiles(apiKey, unpaid[i].Slots)
-		}
-	}
-
-	// Print report
 	fmt.Printf("\nUNPAID OCs (%d)\n", len(unpaid))
 	fmt.Println("================================================================================")
 
 	for _, oc := range unpaid {
-		execStr := time.Unix(oc.ExecutedAt, 0).UTC().Format("2006-01-02 15:04 UTC")
-		link := fmt.Sprintf("https://www.torn.com/factions.php?step=your&type=1#/tab=crimes&crimeId=%d", oc.ID)
+		execStr := oc.Crime.ExecutedAt.UTC().Format("2006-01-02 15:04 UTC")
+		link := fmt.Sprintf("https://www.torn.com/factions.php?step=your&type=1#/tab=crimes&crimeId=%d", oc.Crime.ID)
 
-		// Determine payout verdict
-		const lateThreshold = 30 * 60 // 30 minutes in seconds
 		var verdict string
-		if oc.DelaySec > lateThreshold {
-			verdict = fmt.Sprintf("⚠️  DELAYED %s — check who was blocking before paying", formatDuration(oc.DelaySec))
+		if oc.IsLate {
+			verdict = fmt.Sprintf("⚠️  DELAYED %s — check who was blocking before paying", fmtDuration(oc.DelaySec))
 		} else {
 			verdict = "✅ Everyone on time — safe to pay at normal percentage"
 		}
 
-		// Format money
 		moneyStr := "-"
-		if oc.Money > 0 {
-			moneyStr = fmt.Sprintf("$%s", formatMoney(oc.Money))
+		if oc.Crime.Rewards.Money > 0 {
+			moneyStr = fmt.Sprintf("$%s", fmtMoney(int64(oc.Crime.Rewards.Money)))
 		}
 
-		fmt.Printf("\n%s (id=%d) [%s]\n", oc.Name, oc.ID, oc.Status)
-		fmt.Printf("  Executed: %s | Money: %s | Respect: %d\n", execStr, moneyStr, oc.Respect)
+		fmt.Printf("\n%s (id=%d) [%s]\n", oc.Crime.Name, oc.Crime.ID, oc.Crime.Status)
+		fmt.Printf("  Executed: %s | Money: %s | Respect: %d\n", execStr, moneyStr, oc.Crime.Rewards.Respect)
 		fmt.Printf("  %s\n", verdict)
 		fmt.Printf("  Link: %s\n", link)
-		fmt.Printf("  Members: ")
-		for i, s := range oc.Slots {
-			name := s.UserName
-			if name == "" {
-				name = fmt.Sprintf("uid:%d", s.UserID)
+		fmt.Printf("  Members:")
+		for i, s := range oc.Crime.Slots {
+			name := fmt.Sprintf("uid:%d", 0)
+			label := s.Label
+			if s.User != nil {
+				name = s.User.Name
+				if name == "" {
+					name = fmt.Sprintf("uid:%d", s.User.ID)
+				}
 			}
-			if i > 0 {
-				fmt.Print(", ")
+			if i == 0 {
+				fmt.Printf(" ")
+			} else {
+				fmt.Printf(", ")
 			}
-			fmt.Printf("%s (%s)", name, s.Position)
+			fmt.Printf("%s (%s)", name, label)
 		}
 		fmt.Println()
 	}
@@ -169,10 +91,59 @@ func runOCPayoutsReport(apiKey string) error {
 	return nil
 }
 
-// formatMoney formats a large integer as a comma-separated string (e.g. 1234567 -> "1,234,567").
-func formatMoney(n int64) string {
+// resolveNames fills in User.Name for all slots by calling GetUser concurrently.
+func resolveNames(ctx context.Context, unpaid []services.UnpaidOC, client ports.TornClient) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// Collect unique IDs
+	seen := make(map[int]bool)
+	names := make(map[int]string)
+	for _, oc := range unpaid {
+		for _, s := range oc.Crime.Slots {
+			if s.User != nil && s.User.ID > 0 && !seen[s.User.ID] {
+				seen[s.User.ID] = true
+				wg.Add(1)
+				go func(id int) {
+					defer wg.Done()
+					user, err := client.GetUser(ctx, id)
+					if err != nil || user == nil {
+						return
+					}
+					mu.Lock()
+					names[id] = user.Name
+					mu.Unlock()
+				}(s.User.ID)
+			}
+		}
+	}
+	wg.Wait()
+
+	// Patch names back into the slots
+	for i := range unpaid {
+		for j := range unpaid[i].Crime.Slots {
+			if s := unpaid[i].Crime.Slots[j].User; s != nil {
+				if n, ok := names[s.ID]; ok {
+					unpaid[i].Crime.Slots[j].User.Name = n
+				}
+			}
+		}
+	}
+}
+
+func fmtDuration(seconds int64) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	if seconds < 3600 {
+		return fmt.Sprintf("%dm%02ds", seconds/60, seconds%60)
+	}
+	return fmt.Sprintf("%dh%02dm", seconds/3600, (seconds%3600)/60)
+}
+
+func fmtMoney(n int64) string {
 	s := fmt.Sprintf("%d", n)
-	result := []byte{}
+	result := make([]byte, 0, len(s)+len(s)/3)
 	for i, c := range s {
 		if i > 0 && (len(s)-i)%3 == 0 {
 			result = append(result, ',')
@@ -181,3 +152,6 @@ func formatMoney(n int64) string {
 	}
 	return string(result)
 }
+
+// Ensure time import is used.
+var _ = time.Time{}

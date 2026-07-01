@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/mnuck/torn-dynamic-cli/pkg/domain/services"
+	"github.com/mnuck/torn-dynamic-cli/pkg/ports"
 	"github.com/spf13/cobra"
 )
 
 // NewReportCmd returns a parent "report" command with subcommands attached.
-func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *services.HitService, goodThugService *services.GoodThugService) *cobra.Command {
+func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *services.HitService, goodThugService *services.GoodThugService, ocPayoutService *services.OCPayoutService, tornClient ports.TornClient) *cobra.Command {
 	reportCmd := &cobra.Command{
 		Use:   "report",
 		Short: "Generate faction reports",
@@ -24,7 +25,7 @@ func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *ser
 	reportCmd.AddCommand(newGoodThugsCmd(goodThugService))
 	reportCmd.AddCommand(newHitsCmd(hitService))
 	reportCmd.AddCommand(newLateOCsCmd())
-	reportCmd.AddCommand(newOCPayoutsCmd())
+	reportCmd.AddCommand(newOCPayoutsCmd(ocPayoutService, tornClient))
 	reportCmd.AddCommand(newCompanyStatusCmd())
 	return reportCmd
 }
