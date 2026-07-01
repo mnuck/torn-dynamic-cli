@@ -1,16 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
+	"github.com/mnuck/torn-dynamic-cli/pkg/domain/services"
 	"github.com/spf13/cobra"
 )
 
-func newHitsCmd() *cobra.Command {
+func newHitsCmd(hitService *services.HitService) *cobra.Command {
 	var name string
 	var days int
 
@@ -23,11 +22,7 @@ with results, defenders, respect gained, and links to attack logs.`,
 			if name == "" {
 				return fmt.Errorf("--name is required")
 			}
-			apiKey, err := getAPIKey(cmd)
-			if err != nil {
-				return err
-			}
-			return runHitsReport(apiKey, name, days)
+			return runHitsReport(cmd, name, days, hitService)
 		},
 	}
 
@@ -36,65 +31,15 @@ with results, defenders, respect gained, and links to attack logs.`,
 	return cmd
 }
 
-type hitRecord struct {
-	Timestamp int64
-	DateTime  string
-	Result    string
-	Defender  string
-	Respect   float64
-	Link      string
-}
-
-// filterHits scans paginated attack pages and returns all attacks made by name.
-func filterHits(pages [][]byte, name string) []hitRecord {
-	var hits []hitRecord
-	for _, page := range pages {
-		var resp AttacksPage
-		if err := json.Unmarshal(page, &resp); err != nil {
-			continue
-		}
-		for _, a := range resp.Attacks {
-			if a.Attacker == nil || a.Attacker.Name != name {
-				continue
-			}
-			link := ""
-			if a.Code != "" {
-				link = fmt.Sprintf("https://www.torn.com/loader.php?sid=attackLog&ID=%s", a.Code)
-			}
-			defender := ""
-			if a.Defender != nil {
-				defender = a.Defender.Name
-			}
-			hits = append(hits, hitRecord{
-				Timestamp: a.Ended,
-				DateTime:  time.Unix(a.Ended, 0).UTC().Format("2006-01-02 15:04 UTC"),
-				Result:    a.Result,
-				Defender:  defender,
-				Respect:   a.RespectGain,
-				Link:      link,
-			})
-		}
-	}
-	return hits
-}
-
-func runHitsReport(apiKey, name string, days int) error {
-	from := time.Now().Unix() - int64(days)*86400
-
+func runHitsReport(cmd *cobra.Command, name string, days int, svc *services.HitService) error {
+	from := time.Now().AddDate(0, 0, -days)
 	fmt.Fprintf(os.Stderr, "Fetching outgoing attacks since %s...\n",
-		time.Unix(from, 0).UTC().Format("2006-01-02 15:04 UTC"))
+		from.UTC().Format("2006-01-02 15:04 UTC"))
 
-	url := fmt.Sprintf("https://api.torn.com/v2/faction/attacks?filters=out&from=%d", from)
-	pages, err := fetchAllPages(apiKey, url)
+	hits, err := svc.GetAttackHistory(cmd.Context(), name, days)
 	if err != nil {
 		return fmt.Errorf("failed to fetch attacks: %w", err)
 	}
-
-	hits := filterHits(pages, name)
-
-	sort.Slice(hits, func(i, j int) bool {
-		return hits[i].Timestamp < hits[j].Timestamp
-	})
 
 	fmt.Printf("\nHITS for %s — last %d days (%d total)\n", name, days, len(hits))
 	fmt.Println("--------------------------------------------------------------------------------------------")
@@ -102,8 +47,9 @@ func runHitsReport(apiKey, name string, days int) error {
 	fmt.Println("--------------------------------------------------------------------------------------------")
 
 	for _, h := range hits {
-		respStr := fmt.Sprintf("%+.2f", h.Respect)
-		if h.Respect == 0 {
+		dateTime := time.Unix(h.Timestamp, 0).UTC().Format("2006-01-02 15:04 UTC")
+		respStr := fmt.Sprintf("%+.2f", h.RespectGain)
+		if h.RespectGain == 0 {
 			respStr = "  0.00"
 		}
 		linkStr := h.Link
@@ -111,7 +57,7 @@ func runHitsReport(apiKey, name string, days int) error {
 			linkStr = "-"
 		}
 		fmt.Printf("%-19s  %-12s  %-22s  %6s  %s\n",
-			h.DateTime, h.Result, h.Defender, respStr, linkStr)
+			dateTime, h.Result, h.Defender, respStr, linkStr)
 	}
 
 	fmt.Println()

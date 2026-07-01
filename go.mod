@@ -1,4 +1,4 @@
-module github.com/matthewnuckolls/torn-dynamic-cli
+module github.com/mnuck/torn-dynamic-cli
 
 go 1.26.4
 

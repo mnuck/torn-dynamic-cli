@@ -8,22 +8,25 @@ import (
 	"os"
 	"time"
 
+	"github.com/mnuck/torn-dynamic-cli/pkg/domain/services"
+	"github.com/mnuck/torn-dynamic-cli/pkg/ports"
 	"github.com/spf13/cobra"
 )
 
 // NewReportCmd returns a parent "report" command with subcommands attached.
-func NewReportCmd() *cobra.Command {
+func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *services.HitService, goodThugService *services.GoodThugService, ocPayoutService *services.OCPayoutService, lateOCService *services.LateOCService, tornClient ports.TornClient) *cobra.Command {
 	reportCmd := &cobra.Command{
 		Use:   "report",
 		Short: "Generate faction reports",
 		Long:  "Commands for generating analytical reports about faction activity",
 	}
 
-	reportCmd.AddCommand(newFreeloadersCmd())
-	reportCmd.AddCommand(newGoodThugsCmd())
-	reportCmd.AddCommand(newHitsCmd())
-	reportCmd.AddCommand(newLateOCsCmd())
-	reportCmd.AddCommand(newOCPayoutsCmd())
+	reportCmd.AddCommand(newFreeloadersCmd(freeloaderService))
+	reportCmd.AddCommand(newGoodThugsCmd(goodThugService))
+	reportCmd.AddCommand(newHitsCmd(hitService))
+	reportCmd.AddCommand(newLateOCsCmd(lateOCService))
+	reportCmd.AddCommand(newOCPayoutsCmd(ocPayoutService, tornClient))
+	reportCmd.AddCommand(newCompanyStatusCmd())
 	return reportCmd
 }
 
@@ -37,16 +40,6 @@ func getAPIKey(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("API key required via --key flag or TORN_API_KEY environment variable")
 	}
 	return key, nil
-}
-
-// memberInfo holds parsed data for a single faction member.
-type memberInfo struct {
-	ID            int
-	Name          string
-	Level         int
-	Position      string
-	DaysInFaction int
-	IsInOC        bool
 }
 
 // fetchAllPages follows pagination links to retrieve all pages of a resource.
