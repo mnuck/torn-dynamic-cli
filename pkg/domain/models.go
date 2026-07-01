@@ -18,6 +18,21 @@ type User struct {
 	Revivable     bool
 }
 
+// Member represents a summary of a faction member for reporting.
+type Member struct {
+	ID            int
+	Name          string
+	Level         int
+	Position      string
+	DaysInFaction int
+}
+
+// XanaxUsage represents a recorded instance of Xanax usage from the armory.
+type XanaxUsage struct {
+	Username string
+	Count    int
+}
+
 // UserStatus represents the current status of a user (e.g. Okay, Abroad, Traveling).
 type UserStatus struct {
 	State       string
@@ -62,4 +77,23 @@ type CrimeSlot struct {
 	User         *User
 	IsSuccessful  bool
 	Progress    int // Percentage 0-100
+}
+
+// Hit represents a single outgoing attack in a history report.
+type Hit struct {
+	Timestamp   int64   // Unix timestamp of when the attack ended
+	Attacker    string
+	Defender    string
+	Result      string
+	RespectGain float64
+	Link        string
+}
+
+// Freeloader represents a member who used faction Xanax but is not in any OC.
+type Freeloader struct {
+	Name          string
+	XanaxCount    int
+	Level         int
+	Position      string
+	DaysInFaction int
 }

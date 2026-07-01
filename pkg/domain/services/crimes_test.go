@@ -17,6 +17,21 @@ func (m *MockTornClient) GetCrime(ctx context.Context, id int) (*domain.Crime, e
 func (m *MockTornClient) GetUser(ctx context.Context, id int) (*domain.User, error) {
 	return nil, nil
 }
+func (m *MockTornClient) GetFactionMembers(ctx context.Context) ([]domain.Member, error) {
+	return nil, nil
+}
+func (m *MockTornClient) GetMembers(ctx context.Context) ([]domain.Member, error) {
+	return nil, nil
+}
+func (m *MockTornClient) GetArmoryNews(ctx context.Context, from time.Time) ([]domain.XanaxUsage, error) {
+	return nil, nil
+}
+func (m *MockTornClient) GetCrimes(ctx context.Context, category string, from *time.Time) ([]domain.Crime, error) {
+	return nil, nil
+}
+func (m *MockTornClient) GetAttacks(ctx context.Context, from time.Time) ([]domain.Hit, error) {
+	return nil, nil
+}
 
 // MockDataRepo is a mock implementation of ports.DataRepository.
 type MockDataRepo struct {
