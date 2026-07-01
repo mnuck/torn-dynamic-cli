@@ -193,6 +193,9 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 					User *struct {
 						ID int `json:"id"`
 					} `json:"user"`
+					ItemRequirement *struct {
+						IsAvailable bool `json:"is_available"`
+					} `json:"item_requirement"`
 				} `json:"slots"`
 			} `json:"crimes"`
 			Metadata *apiMetadata `json:"_metadata"`
@@ -209,7 +212,9 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 				Name:       cr.Name,
 				Difficulty: cr.Difficulty,
 				Status:     cr.Status,
-				ReadyAt:    time.Unix(cr.ReadyAt, 0),
+			}
+			if cr.ReadyAt > 0 {
+				crime.ReadyAt = time.Unix(cr.ReadyAt, 0)
 			}
 			if cr.ExecutedAt > 0 {
 				t := time.Unix(cr.ExecutedAt, 0)
@@ -236,6 +241,10 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 				if s.User != nil && s.User.ID > 0 {
 					slot.User = &domain.User{ID: s.User.ID}
 				}
+				if s.ItemRequirement != nil {
+					avail := s.ItemRequirement.IsAvailable
+					slot.ItemAvailable = &avail
+				}
 				crime.Slots = append(crime.Slots, slot)
 			}
 			allCrimes = append(allCrimes, crime)
@@ -251,18 +260,22 @@ func (c *HTTPClient) GetCrimes(ctx context.Context, category string, from *time.
 }
 
 func (c *HTTPClient) GetUser(ctx context.Context, id int) (*domain.User, error) {
-	url := fmt.Sprintf("%s/user/%d", c.baseURL, id)
+	url := fmt.Sprintf("%s/user/%d/profile", c.baseURL, id)
 	var resp struct {
-		User struct {
-			ID           int    `json:"id"`
-			Name         string `json:"name"`
-			Level        int    `json:"level"`
-			Rank         string `json:"rank"`
-			Role         string `json:"role"`
-			DonatorStatus string `json:"donator_status"`
-			SignedUp     string `json:"signed_up"`
-			Revivable    bool   `json:"revivable"`
-		} `json:"user"`
+		Profile struct {
+			ID     int    `json:"id"`
+			Name   string `json:"name"`
+			Level  int    `json:"level"`
+			Rank   string `json:"rank"`
+			Role   string `json:"role"`
+			Status *struct {
+				State       string `json:"state"`
+				Description string `json:"description"`
+			} `json:"status"`
+			LastAction *struct {
+				Relative string `json:"relative"`
+			} `json:"last_action"`
+		} `json:"profile"`
 	}
 
 	_, err := c.do(ctx, url, &resp)
@@ -270,15 +283,23 @@ func (c *HTTPClient) GetUser(ctx context.Context, id int) (*domain.User, error) 
 		return nil, err
 	}
 
-	return &domain.User{
-		ID:           resp.User.ID,
-		Name:         resp.User.Name,
-		Level:        resp.User.Level,
-		Rank:         resp.User.Rank,
-		Role:         resp.User.Role,
-		DonatorStatus: resp.User.DonatorStatus,
-		Revivable:    resp.User.Revivable,
-	}, nil
+	u := &domain.User{
+		ID:    resp.Profile.ID,
+		Name:  resp.Profile.Name,
+		Level: resp.Profile.Level,
+		Rank:  resp.Profile.Rank,
+		Role:  resp.Profile.Role,
+	}
+	if resp.Profile.Status != nil {
+		u.Status = domain.UserStatus{
+			State:       resp.Profile.Status.State,
+			Description: resp.Profile.Status.Description,
+		}
+	}
+	if resp.Profile.LastAction != nil {
+		u.LastAction = domain.UserAction{Relative: resp.Profile.LastAction.Relative}
+	}
+	return u, nil
 }
 
 func (c *HTTPClient) GetCrime(ctx context.Context, id int) (*domain.Crime, error) {

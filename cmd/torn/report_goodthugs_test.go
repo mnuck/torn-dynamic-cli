@@ -24,6 +24,9 @@ func (m *mockFactionRepo) GetArmoryNews(ctx context.Context, from time.Time) ([]
 func (m *mockFactionRepo) GetActiveCrimes(ctx context.Context) ([]domain.Crime, error) {
 	return nil, nil
 }
+func (m *mockFactionRepo) GetPlanningCrimes(ctx context.Context) ([]domain.Crime, error) {
+	return nil, nil
+}
 func (m *mockFactionRepo) GetCompletedCrimes(ctx context.Context, from time.Time) ([]domain.Crime, error) {
 	return m.crimes, nil
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mnuck/torn-dynamic-cli/pkg/domain"
 	"github.com/mnuck/torn-dynamic-cli/pkg/domain/services"
 	"github.com/spf13/cobra"
 )
@@ -60,36 +59,4 @@ func runFreeloadersReport(ctx context.Context, hours int, svc *services.Freeload
 	fmt.Printf("Freeloaders: %d members used Xanax without OC participation\n", len(freeloaders))
 	fmt.Printf("Total Xanax used from supply: %d\n", totalXanax)
 	return nil
-}
-
-// classifyFreeloaders is kept for use in tests that import it directly.
-func classifyFreeloaders(
-	xanaxUsage map[string]int,
-	nameToID map[string]int,
-	memberData map[int]memberInfo,
-	ocParticipants map[int]bool,
-) ([]domain.Freeloader, int) {
-	var freeloaders []domain.Freeloader
-	compliantCount := 0
-
-	for username, count := range xanaxUsage {
-		userID, exists := nameToID[username]
-		if !exists {
-			continue
-		}
-		member := memberData[userID]
-		inOC := ocParticipants[userID] || member.IsInOC
-		if !inOC {
-			freeloaders = append(freeloaders, domain.Freeloader{
-				Name:          username,
-				XanaxCount:    count,
-				Level:         member.Level,
-				Position:      member.Position,
-				DaysInFaction: member.DaysInFaction,
-			})
-		} else {
-			compliantCount++
-		}
-	}
-	return freeloaders, compliantCount
 }

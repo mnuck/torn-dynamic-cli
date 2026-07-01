@@ -51,6 +51,7 @@ type UserStatus struct {
 // UserAction represents the last action taken by a user.
 type UserAction struct {
 	Status    string
+	Relative  string
 	Timestamp time.Time
 }
 
@@ -81,11 +82,34 @@ type CrimeRewards struct {
 
 // CrimeSlot represents a slot in an organized crime.
 type CrimeSlot struct {
-	Position     string
-	Label        string
-	User         *User
+	Position      string
+	Label         string
+	User          *User
+	ItemAvailable *bool // nil = no item requirement
 	IsSuccessful  bool
-	Progress    int // Percentage 0-100
+	Progress      int // Percentage 0-100
+}
+
+// LateOCSlot is a slot in a late OC, enriched with the member's current status.
+type LateOCSlot struct {
+	Position      string
+	UserID        int
+	UserName      string
+	ItemAvailable string // "✓", "✗", or "n/a"
+	StatusState   string
+	StatusDesc    string
+	LastAction    string
+	IsBlocker     bool
+}
+
+// LateOC is an organized crime that became ready but was delayed.
+type LateOC struct {
+	ID         int
+	Name       string
+	ReadyAt    time.Time
+	ExecutedAt *time.Time // nil = still waiting
+	DelaySec   int64
+	Slots      []LateOCSlot
 }
 
 // Hit represents a single outgoing attack in a history report.

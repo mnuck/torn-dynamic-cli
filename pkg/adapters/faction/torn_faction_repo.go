@@ -31,6 +31,10 @@ func (r *TornFactionRepo) GetActiveCrimes(ctx context.Context) ([]domain.Crime, 
 	return r.client.GetCrimes(ctx, "available", nil)
 }
 
+func (r *TornFactionRepo) GetPlanningCrimes(ctx context.Context) ([]domain.Crime, error) {
+	return r.client.GetCrimes(ctx, "planning", nil)
+}
+
 func (r *TornFactionRepo) GetCompletedCrimes(ctx context.Context, from time.Time) ([]domain.Crime, error) {
 	if from.IsZero() {
 		return r.client.GetCrimes(ctx, "completed", nil)

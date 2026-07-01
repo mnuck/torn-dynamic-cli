@@ -9,9 +9,11 @@ import (
 
 // mockFactionRepo is a shared in-memory FactionRepository for service-level tests.
 type mockFactionRepo struct {
-	members []domain.Member
-	crimes  []domain.Crime
-	news    []domain.XanaxUsage
+	members  []domain.Member
+	crimes   []domain.Crime
+	planning []domain.Crime
+	active   []domain.Crime
+	news     []domain.XanaxUsage
 }
 
 func (m *mockFactionRepo) GetMembers(ctx context.Context) ([]domain.Member, error) {
@@ -23,7 +25,11 @@ func (m *mockFactionRepo) GetArmoryNews(ctx context.Context, from time.Time) ([]
 }
 
 func (m *mockFactionRepo) GetActiveCrimes(ctx context.Context) ([]domain.Crime, error) {
-	return nil, nil
+	return m.active, nil
+}
+
+func (m *mockFactionRepo) GetPlanningCrimes(ctx context.Context) ([]domain.Crime, error) {
+	return m.planning, nil
 }
 
 func (m *mockFactionRepo) GetCompletedCrimes(ctx context.Context, from time.Time) ([]domain.Crime, error) {

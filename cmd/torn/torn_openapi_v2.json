@@ -3,7 +3,7 @@
     "info": {
         "title": "Torn API",
         "description": "\n * The development of Torn's API v2 is still ongoing.\n * If selections remain unaltered, they will default to the API v1 version.\n * Unlike API v1, API v2 accepts both selections and IDs as path and query parameters.\n * If any discrepancies or errors are found, please submit a [bug report](https://www.torn.com/forums.php#/p=forums&f=19&b=0&a=0) on the Torn Forums.\n * In case you're using bots to check for changes on openapi.json file, make sure to specificy a custom user-agent header - CloudFlare sometimes prevents requests from default user-agents.",
-        "version": "5.5.3"
+        "version": "6.0.0"
     },
     "servers": [
         {
@@ -336,7 +336,7 @@
                     "User"
                 ],
                 "summary": "Get bounties placed on you",
-                "description": "Requires public access key. <br>",
+                "description": "<b>Globally cached selection.</b><br><br>Requires public access key. <br>",
                 "operationId": "getMyBounties",
                 "parameters": [
                     {
@@ -454,6 +454,45 @@
                     }
                 ],
                 "x-stability": "Stable"
+            }
+        },
+        "/user/casino": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get your casino streak & tokens",
+                "description": "Requires limited access key. <br>Only available to yourself.",
+                "operationId": "getMyCasinoStreak",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyLimited"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserCasinoResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
             }
         },
         "/user/competition": {
@@ -1530,6 +1569,60 @@
                 "x-stability": "Stable"
             }
         },
+        "/user/inventory": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get your inventory",
+                "description": "<b>Cached selection (1 hour per category).</b><br><br>Requires limited access key. <br>",
+                "operationId": "getMyInventory",
+                "parameters": [
+                    {
+                        "name": "cat",
+                        "in": "query",
+                        "description": "Items category",
+                        "required": false,
+                        "schema": {
+                            "$ref": "#/components/schemas/TornInventoryItemType"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiOffset"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiLimit250Default20"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyLimited"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserInventoryResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
         "/user/itemmarket": {
             "get": {
                 "tags": [
@@ -1559,6 +1652,45 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/UserItemMarketResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
+        "/user/itemmods": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get your information about available item mods",
+                "description": "Requires minimal access key. <br>",
+                "operationId": "getMyItemModsInformation",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserItemModsResponse"
                                 }
                             }
                         }
@@ -1803,7 +1935,7 @@
                     "User"
                 ],
                 "summary": "Get your logs",
-                "description": "Requires full access key. <br> It's possible to pass a list of log ids or a log category id.<br>",
+                "description": "Requires full access key. <br> It's possible to pass a list of log ids or a log category id.<br>This selection is standalone and cannot be used together with other selections.",
                 "operationId": "getMyLogs",
                 "parameters": [
                     {
@@ -2858,7 +2990,7 @@
                     "User"
                 ],
                 "summary": "Get your reports",
-                "description": "Requires limited access key. <br>\n * The default limit is set to 25. However, the limit can be set to 100 for the 'stats' category.",
+                "description": "Requires limited access key. <br>\nThe limit is set to 25 when requesting any category other than 'stats'.<br>\nWhen requesting the 'stats' category, limit can be increased up to 100.",
                 "operationId": "getMyReports",
                 "parameters": [
                     {
@@ -3543,6 +3675,9 @@
                                     "$ref": "#/components/schemas/RacingRaceTypeEnum"
                                 },
                                 {
+                                    "$ref": "#/components/schemas/TornInventoryItemType"
+                                },
+                                {
                                     "$ref": "#/components/schemas/TradeCategoryEnum"
                                 }
                             ]
@@ -3706,6 +3841,9 @@
                                             "$ref": "#/components/schemas/UserOrganizedCrimeResponse"
                                         },
                                         {
+                                            "$ref": "#/components/schemas/UserItemModsResponse"
+                                        },
+                                        {
                                             "$ref": "#/components/schemas/AttacksResponse"
                                         },
                                         {
@@ -3728,6 +3866,9 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/AttacksFullResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/UserCasinoResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/UserMoneyResponse"
@@ -3764,6 +3905,9 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/UserLookupResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/UserInventoryResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/TimestampResponse"
@@ -4458,6 +4602,9 @@
                         }
                     },
                     {
+                        "$ref": "#/components/parameters/ApiLimit100Default20"
+                    },
+                    {
                         "$ref": "#/components/parameters/ApiOffset"
                     },
                     {
@@ -4776,7 +4923,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/FactionNewsResponse"
+                                    "$ref": "#/components/schemas/NewsResponse"
                                 }
                             }
                         }
@@ -5192,7 +5339,7 @@
                     "Faction"
                 ],
                 "summary": "Get faction reports",
-                "description": "Requires limited access key. <br>\n *  The default limit is set to 25. However, the limit can be set to 100 for the 'stats' category.",
+                "description": "Requires limited access key. <br>\nThe limit is set to 25 when requesting any category other than 'stats'.<br>\nWhen requesting the 'stats' category, limit can be increased up to 100.",
                 "operationId": "getMyFactionReports",
                 "parameters": [
                     {
@@ -6192,7 +6339,7 @@
                                             "$ref": "#/components/schemas/FactionWarsResponse"
                                         },
                                         {
-                                            "$ref": "#/components/schemas/FactionNewsResponse"
+                                            "$ref": "#/components/schemas/NewsResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/RevivesResponse"
@@ -6271,6 +6418,688 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/FactionLookupResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TimestampResponse"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
+        "/company/applications": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get your company's applications",
+                "description": "Requires limited access key. <br>",
+                "operationId": "getMyCompanyApplications",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyLimited"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyApplicationsResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/employees": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get my company's employees",
+                "description": "Requires public access key. <br>When using Limited, Custom or Full access API keys, the response will be:<br>\n * for director: CompanyEmployeeFull\n * for employee: CompanyEmployeeExtended\n * anyone else: CompanyEmployee.",
+                "operationId": "getMyCompanyEmployees",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsTrue"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyEmployeesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/{id}/employees": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get a company's employees",
+                "description": "Requires public access key.",
+                "operationId": "getCompanyEmployees",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Company id",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/CompanyId"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsTrue"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyEmployeesResponseBasic"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/news": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get your company's news details",
+                "description": "Requires minimal access key. <br>",
+                "operationId": "getMyCompanyNews",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsFalse"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiLimit100"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiSortDesc"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTo"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiFrom"
+                    },
+                    {
+                        "name": "cat",
+                        "in": "query",
+                        "description": "News category type",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/CompanyNewsCategory"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyMinimal"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NewsResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/{typeId}/companies": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get a list of companies for a specific company type",
+                "description": "Requires public access key. <br>",
+                "operationId": "getCompaniesList",
+                "parameters": [
+                    {
+                        "name": "typeId",
+                        "in": "path",
+                        "description": "Company type id",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/CompanyTypeId"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiLimit100Default20"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiOffsetNoDefault"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsTrue"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompaniesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/profile": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get my company's profile",
+                "description": "Requires public access key. <br>When using Limited, Custom or Full access API keys, the response will be of type CompanyProfileExtended, otherwise it will be CompanyProfile.",
+                "operationId": "getMyCompanyProfile",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsTrue"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyProfileResponseMixed"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/{id}/profile": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get a company's profile",
+                "description": "Requires public access key.",
+                "operationId": "getCompanyProfile",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Company id",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/CompanyId"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiStripTagsTrue"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyProfileResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/search": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Search companies by name or other criteria",
+                "description": "Requires public access key. <br>This selection is standalone and cannot be used together with other selections.",
+                "operationId": "getCompaniesSearch",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiName"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiCompanySearchFilter"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiLimit50Default20"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiOffset"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompaniesSearchResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/snapshot": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get daily companies snapshot CSV",
+                "description": "Requires public access key.<br>Returns a CSV daily snapshot of companies.<br>This selection is standalone and cannot be used together with other selections.<br>\nCSV columns: id, name, created_at, days_old, image, type, rating, director_id,\nemployees_hired, employees_capacity, daily_income, daily_customers,\nweekly_income, weekly_customers, applications_allowed",
+                "operationId": "getCompaniesSnapshot",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful CSV response",
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string",
+                                    "example": "id,name,created_at,days_old,image,type,rating,director_id,employees_hired,employees_capacity,daily_income,daily_customers,weekly_income,weekly_customers,applications_allowed\\n125981,Safety first,1779957421,0,,10,0,4082850,1,7,0,0,0,0,1"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/stock": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get your company's stock",
+                "description": "Requires limited access key. <br>",
+                "operationId": "getMyCompanyStock",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyLimited"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyStockResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/company/lookup": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "description": "Requires public access key. <br>",
+                "operationId": "getCompanyLookup",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyLookupResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
+        "/company/timestamp": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get current server time",
+                "description": "Requires public access key. <br>",
+                "operationId": "getCompanyTimestamp",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TimestampResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
+        "/company": {
+            "get": {
+                "tags": [
+                    "Company"
+                ],
+                "summary": "Get any Company selection",
+                "description": "Key access level depends on the required selections. <br> Choose one or more selections (comma separated).",
+                "operationId": "getCompanyGeneric",
+                "parameters": [
+                    {
+                        "name": "selections",
+                        "in": "query",
+                        "description": "Selection names",
+                        "required": false,
+                        "style": "form",
+                        "explode": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/components/schemas/CompanySelectionName"
+                            }
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "description": "selection id",
+                        "required": false,
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/CompanyId"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "legacy",
+                        "in": "query",
+                        "description": "Legacy selection names for which you want or expect API v1 response",
+                        "required": false,
+                        "style": "form",
+                        "explode": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/components/schemas/CompanySelectionName"
+                            }
+                        }
+                    },
+                    {
+                        "name": "cat",
+                        "in": "query",
+                        "description": "Selection category",
+                        "required": false,
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/CompanyNewsCategory"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiLimit"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiStripTags"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiOffsetNoDefault"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/schemas/CompanyApplicationsResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyEmployeesResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyEmployeesResponseBasic"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyProfileResponseMixed"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyProfileResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NewsResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyStockResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/CompanyLookupResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/TimestampResponse"
@@ -7152,7 +7981,7 @@
                     "Market"
                 ],
                 "summary": "Get item market listings",
-                "description": "Requires public access key. <br>",
+                "description": "<b>Globally cached selection.</b><br><br>Requires public access key. <br>",
                 "operationId": "getMarketItemMarketItem",
                 "parameters": [
                     {
@@ -7215,7 +8044,7 @@
                     "Market"
                 ],
                 "summary": "Get properties market listings",
-                "description": "Requires public access key. <br>",
+                "description": "<b>Globally cached selection.</b><br><br>Requires public access key. <br>",
                 "operationId": "getMarketProperties",
                 "parameters": [
                     {
@@ -7272,7 +8101,7 @@
                     "Market"
                 ],
                 "summary": "Get properties rental listings",
-                "description": "Requires public access key. <br>",
+                "description": "<b>Globally cached selection.</b><br><br>Requires public access key. <br>",
                 "operationId": "getMarketPropertiesRental",
                 "parameters": [
                     {
@@ -8298,7 +9127,7 @@
                     "Torn"
                 ],
                 "summary": "Get bounties",
-                "description": "Requires public key. <br>",
+                "description": "<b>Globally cached selection.</b><br><br>Requires public key. <br>",
                 "operationId": "getTornBounties",
                 "parameters": [
                     {
@@ -14366,12 +15195,12 @@
             "FactionPositionAbilityEnum": {
                 "type": "string",
                 "enum": [
-                    "Medical Item Usage",
-                    "Booster Item Usage",
-                    "Drug Item Usage",
+                    "Medical Usage",
+                    "Booster Usage",
+                    "Drug Usage",
                     "Energy Refill Usage",
                     "Nerve Refill Usage",
-                    "Temporary Item Loaning",
+                    "Temporary Loaning",
                     "Weapon & Armor Loaning",
                     "Item Retrieving",
                     "Organised Crimes",
@@ -14388,8 +15217,12 @@
                     "Newsletter Sending",
                     "Announcement Changes",
                     "Description Changes",
-                    "Utility Item Loaning",
-                    "Consumable Item Usage"
+                    "Utility Loaning",
+                    "Consumable Usage",
+                    "Medical Loaning",
+                    "Consumable Loaning",
+                    "Drug Loaning",
+                    "Booster Loaning"
                 ]
             },
             "FactionOrganizedCrimePayoutType": {
@@ -14423,6 +15256,16 @@
                     "membership",
                     "depositFunds",
                     "giveFunds"
+                ]
+            },
+            "CompanyNewsCategory": {
+                "type": "string",
+                "enum": [
+                    "main",
+                    "funds",
+                    "training",
+                    "employees",
+                    "all"
                 ]
             },
             "FactionRankEnum": {
@@ -14778,7 +15621,7 @@
                     "Pads"
                 ]
             },
-            "FactionApplicationStatusEnum": {
+            "ApplicationStatusEnum": {
                 "type": "string",
                 "enum": [
                     "accepted",
@@ -14909,6 +15752,10 @@
                 "format": "int64"
             },
             "UserId": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "CompanyPositionId": {
                 "type": "integer",
                 "format": "int32"
             },
@@ -15104,6 +15951,30 @@
                     "Enby"
                 ]
             },
+            "CompanyStaffRoomSizeEnum": {
+                "type": "string",
+                "enum": [
+                    "No staff room",
+                    "Small staff room",
+                    "Standard staff room",
+                    "Large staff room",
+                    "Very large staff room",
+                    "Huge staff room",
+                    "Colossal staff room"
+                ]
+            },
+            "CompanyStorageSizeEnum": {
+                "type": "string",
+                "enum": [
+                    "Small room",
+                    "Standard room",
+                    "Large room",
+                    "Huge room",
+                    "Warehouse",
+                    "Large warehouse",
+                    "Huge warehouse"
+                ]
+            },
             "HonorRarityEnum": {
                 "type": "string",
                 "enum": [
@@ -15125,6 +15996,21 @@
                     "v2"
                 ]
             },
+            "CompanySearchParameter": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "enum": [
+                            "recruiting",
+                            "notRecruiting"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "pattern": "^(id|type|daysOld|rating|dailyIncome|weeklyIncome|dailyCustomers|weeklyCustomers):(=|!=|<|<=|>=|>|Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater):\\d+$"
+                    }
+                ]
+            },
             "Parameters": {
                 "oneOf": [
                     {
@@ -15138,7 +16024,7 @@
                     },
                     {
                         "type": "string",
-                        "pattern": "^(id|respect|members)(Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater)\\d+$"
+                        "pattern": "^(id|respect|members|membersMax):(=|!=|<|<=|>=|>|Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater):\\d+$"
                     }
                 ]
             },
@@ -15367,6 +16253,36 @@
                     "Tool",
                     "Unused",
                     "Weapon"
+                ]
+            },
+            "TornInventoryItemType": {
+                "type": "string",
+                "enum": [
+                    "Collectible",
+                    "Clothing",
+                    "Other",
+                    "Tool",
+                    "Melee",
+                    "Defensive",
+                    "Material",
+                    "Car",
+                    "Primary",
+                    "Secondary",
+                    "Book",
+                    "Special",
+                    "Supply Pack",
+                    "Temporary",
+                    "Enhancer",
+                    "Artifact",
+                    "Flower",
+                    "Booster",
+                    "Medical",
+                    "Candy",
+                    "Jewelry",
+                    "Alcohol",
+                    "Plushie",
+                    "Drug",
+                    "Energy Drink"
                 ]
             },
             "TornItemArmorCoveragePartEnum": {
@@ -17054,6 +17970,25 @@
                 },
                 "type": "object"
             },
+            "ErrorFileDoesNotExist": {
+                "required": [
+                    "code",
+                    "error"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "format": "int32",
+                        "enum": [
+                            30
+                        ]
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "ApiError": {
                 "oneOf": [
                     {
@@ -17145,8 +18080,55 @@
                     },
                     {
                         "$ref": "#/components/schemas/ErrorCategorySelectionUnavailableForInteractionLogs"
+                    },
+                    {
+                        "$ref": "#/components/schemas/ErrorFileDoesNotExist"
                     }
                 ]
+            },
+            "UserItemMod": {
+                "required": [
+                    "id",
+                    "title",
+                    "equipped",
+                    "equipped_item_uid"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/ItemModId"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "equipped": {
+                        "type": "boolean"
+                    },
+                    "equipped_item_uid": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ItemUid"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object"
+            },
+            "UserItemModsResponse": {
+                "required": [
+                    "itemmods"
+                ],
+                "properties": {
+                    "itemmods": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UserItemMod"
+                        }
+                    }
+                },
+                "type": "object"
             },
             "UserTradesResponse": {
                 "required": [
@@ -17162,6 +18144,104 @@
                     },
                     "_metadata": {
                         "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                    }
+                },
+                "type": "object"
+            },
+            "UserCasinoResponse": {
+                "required": [
+                    "casino"
+                ],
+                "properties": {
+                    "casino": {
+                        "required": [
+                            "tokens",
+                            "streak"
+                        ],
+                        "properties": {
+                            "tokens": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "streak": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "UserInventoryItem": {
+                "required": [
+                    "id",
+                    "amount",
+                    "equipped",
+                    "name",
+                    "faction_owned",
+                    "uid"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/ItemId"
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "equipped": {
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "faction_owned": {
+                        "type": "boolean"
+                    },
+                    "uid": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ItemUid"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object"
+            },
+            "UserInventory": {
+                "required": [
+                    "items",
+                    "timestamp"
+                ],
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UserInventoryItem"
+                        }
+                    },
+                    "timestamp": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "UserInventoryResponse": {
+                "required": [
+                    "inventory",
+                    "_metadata"
+                ],
+                "properties": {
+                    "inventory": {
+                        "$ref": "#/components/schemas/UserInventory"
+                    },
+                    "_metadata": {
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
                     }
                 },
                 "type": "object"
@@ -17604,17 +18684,64 @@
                     },
                     {
                         "required": [
-                            "slot"
+                            "slot",
+                            "ammo",
+                            "mods"
                         ],
                         "properties": {
                             "slot": {
                                 "type": "integer",
                                 "format": "int32"
+                            },
+                            "mods": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/UserEquipmentItemMod"
+                                }
+                            },
+                            "ammo": {
+                                "required": [
+                                    "id",
+                                    "name",
+                                    "type",
+                                    "quantity"
+                                ],
+                                "properties": {
+                                    "id": {
+                                        "$ref": "#/components/schemas/AmmoId"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "quantity": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    "type": {
+                                        "$ref": "#/components/schemas/TornItemAmmoTypeEnum"
+                                    }
+                                },
+                                "type": "object"
                             }
                         },
                         "type": "object"
                     }
                 ]
+            },
+            "UserEquipmentItemMod": {
+                "required": [
+                    "id",
+                    "name"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/ItemModId"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
             },
             "UserClothing": {
                 "required": [
@@ -20946,6 +22073,11 @@
                     "bounties_timestamp": {
                         "type": "integer",
                         "format": "int32"
+                    },
+                    "bounties_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "type": "object"
@@ -21251,7 +22383,7 @@
             "UserSelectionName": {
                 "oneOf": [
                     {
-                        "description": "The following selections will fallback to API v1 and may change at any time: 'bazaar','criminalrecord','display','gym','inventory','networth','perks'.",
+                        "description": "The following selections will fallback to API v1 and may change at any time: 'bazaar','criminalrecord','display','gym','networth','perks'.",
                         "type": "string",
                         "enum": [
                             "ammo",
@@ -21262,6 +22394,7 @@
                             "battlestats",
                             "bounties",
                             "calendar",
+                            "casino",
                             "competition",
                             "cooldowns",
                             "crimes",
@@ -21279,7 +22412,9 @@
                             "hof",
                             "honors",
                             "icons",
+                            "inventory",
                             "itemmarket",
+                            "itemmod",
                             "job",
                             "jobpoints",
                             "jobranks",
@@ -21318,7 +22453,6 @@
                             "display",
                             "education",
                             "gym",
-                            "inventory",
                             "networth",
                             "perks"
                         ]
@@ -24908,6 +26042,7 @@
                     "name",
                     "respect",
                     "members",
+                    "members_max",
                     "leader",
                     "co_leader",
                     "image",
@@ -24928,6 +26063,10 @@
                         "format": "int32"
                     },
                     "members": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "members_max": {
                         "type": "integer",
                         "format": "int32"
                     },
@@ -25264,11 +26403,15 @@
                 "required": [
                     "id",
                     "owned_by",
-                    "acquired_at"
+                    "acquired_at",
+                    "irradiated"
                 ],
                 "properties": {
                     "id": {
                         "type": "string"
+                    },
+                    "irradiated": {
+                        "type": "boolean"
                     },
                     "owned_by": {
                         "oneOf": [
@@ -25886,6 +27029,7 @@
                     "name",
                     "tag",
                     "tag_image",
+                    "banner_image",
                     "leader_id",
                     "co_leader_id",
                     "respect",
@@ -25907,6 +27051,9 @@
                         "type": "string"
                     },
                     "tag_image": {
+                        "type": "string"
+                    },
+                    "banner_image": {
                         "type": "string"
                     },
                     "leader_id": {
@@ -25981,7 +27128,8 @@
                     },
                     "until": {
                         "description": "The duration until when is the non-aggression pact valid.",
-                        "type": "string"
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "type": "object"
@@ -26278,7 +27426,7 @@
                 },
                 "type": "object"
             },
-            "FactionNews": {
+            "News": {
                 "required": [
                     "id",
                     "text",
@@ -26298,7 +27446,7 @@
                 },
                 "type": "object"
             },
-            "FactionNewsResponse": {
+            "NewsResponse": {
                 "required": [
                     "news",
                     "_metadata"
@@ -26307,7 +27455,7 @@
                     "news": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/FactionNews"
+                            "$ref": "#/components/schemas/News"
                         }
                     },
                     "_metadata": {
@@ -26454,7 +27602,7 @@
                         "format": "int32"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/FactionApplicationStatusEnum"
+                        "$ref": "#/components/schemas/ApplicationStatusEnum"
                     }
                 },
                 "type": "object"
@@ -26998,8 +28146,8 @@
                     },
                     "percentage": {
                         "description": "Total percentage split between all participants.",
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number",
+                        "format": "float"
                     },
                     "paid_by": {
                         "$ref": "#/components/schemas/UserId"
@@ -27066,15 +28214,6 @@
                     },
                     "position_info": {
                         "$ref": "#/components/schemas/FactionSlotPositionInfo"
-                    },
-                    "position_id": {
-                        "$ref": "#/components/schemas/TornOrganizedCrimePositionIdDeprecated"
-                    },
-                    "position_number": {
-                        "description": "This field is now available in 'position_info' object as 'number' field.<br>This field will be removed on 1st of June 2026.",
-                        "type": "integer",
-                        "format": "int32",
-                        "deprecated": true
                     },
                     "item_requirement": {
                         "description": "Details of item required for the slot, if applicable.",
@@ -27687,6 +28826,795 @@
                             }
                         },
                         "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanySelectionName": {
+                "oneOf": [
+                    {
+                        "description": "The following selections are not available in API v2: 'details'.",
+                        "type": "string",
+                        "enum": [
+                            "applications",
+                            "companies",
+                            "employees",
+                            "lookup",
+                            "news",
+                            "profile",
+                            "snapshot",
+                            "stock",
+                            "timestamp"
+                        ]
+                    },
+                    {
+                        "type": "string"
+                    }
+                ]
+            },
+            "CompanyLookupResponse": {
+                "required": [
+                    "selections"
+                ],
+                "properties": {
+                    "selections": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanySelectionName"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "CompaniesResponse": {
+                "required": [
+                    "companies",
+                    "companies_timestamp",
+                    "companies_delay",
+                    "_metadata"
+                ],
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanyProfile"
+                        }
+                    },
+                    "companies_timestamp": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "companies_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "_metadata": {
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
+                    }
+                },
+                "type": "object"
+            },
+            "CompaniesSearchResponse": {
+                "required": [
+                    "search",
+                    "_metadata"
+                ],
+                "properties": {
+                    "search": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanySearchProfile"
+                        }
+                    },
+                    "_metadata": {
+                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyProfileResponse": {
+                "required": [
+                    "profile"
+                ],
+                "properties": {
+                    "profile": {
+                        "$ref": "#/components/schemas/CompanyProfile"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyProfileExtendedResponse": {
+                "required": [
+                    "profile"
+                ],
+                "properties": {
+                    "profile": {
+                        "$ref": "#/components/schemas/CompanyProfileExtended"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyProfileResponseMixed": {
+                "required": [
+                    "profile"
+                ],
+                "properties": {
+                    "profile": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/CompanyProfile"
+                            },
+                            {
+                                "$ref": "#/components/schemas/CompanyProfileExtended"
+                            }
+                        ]
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyProfileExtended": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/CompanyProfile"
+                    },
+                    {
+                        "required": [
+                            "funds",
+                            "popularity",
+                            "efficiency",
+                            "environment",
+                            "trains",
+                            "advertisement_budget",
+                            "upgrades",
+                            "value"
+                        ],
+                        "properties": {
+                            "funds": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "popularity": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "efficiency": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "environment": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "trains": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "advertisement_budget": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "upgrades": {
+                                "$ref": "#/components/schemas/CompanyUpgrades"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "CompanyUpgrades": {
+                "required": [
+                    "staff_room",
+                    "storage",
+                    "storage_capacity"
+                ],
+                "properties": {
+                    "staff_room": {
+                        "$ref": "#/components/schemas/CompanyStaffRoomSizeEnum"
+                    },
+                    "storage": {
+                        "type": "string"
+                    },
+                    "storage_capacity": {
+                        "$ref": "#/components/schemas/CompanyStorageSizeEnum"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyProfile": {
+                "required": [
+                    "id",
+                    "name",
+                    "created_at",
+                    "days_old",
+                    "image",
+                    "type",
+                    "rating",
+                    "director",
+                    "employees",
+                    "income",
+                    "customers",
+                    "applications_allowed"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "days_old": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "image": {
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/CompanyType"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "director": {
+                        "$ref": "#/components/schemas/CompanyDirector"
+                    },
+                    "employees": {
+                        "$ref": "#/components/schemas/CompanyEmployees"
+                    },
+                    "income": {
+                        "$ref": "#/components/schemas/CompanyIncome"
+                    },
+                    "customers": {
+                        "$ref": "#/components/schemas/CompanyCustomers"
+                    },
+                    "applications_allowed": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanySearchProfile": {
+                "required": [
+                    "id",
+                    "name",
+                    "created_at",
+                    "days_old",
+                    "image",
+                    "type",
+                    "rating",
+                    "employees",
+                    "income",
+                    "customers",
+                    "applications_allowed"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "days_old": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "image": {
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/CompanyType"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "employees": {
+                        "$ref": "#/components/schemas/CompanyEmployees"
+                    },
+                    "income": {
+                        "$ref": "#/components/schemas/CompanyIncome"
+                    },
+                    "customers": {
+                        "$ref": "#/components/schemas/CompanyCustomers"
+                    },
+                    "applications_allowed": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyType": {
+                "required": [
+                    "id",
+                    "name"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyTypeId"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyDirector": {
+                "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "last_action"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/UserId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/UserStatus"
+                    },
+                    "last_action": {
+                        "$ref": "#/components/schemas/UserLastAction"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployees": {
+                "required": [
+                    "hired",
+                    "capacity"
+                ],
+                "properties": {
+                    "hired": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "capacity": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyIncome": {
+                "required": [
+                    "daily",
+                    "weekly"
+                ],
+                "properties": {
+                    "daily": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "weekly": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyCustomers": {
+                "required": [
+                    "daily",
+                    "weekly"
+                ],
+                "properties": {
+                    "daily": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "weekly": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployeesResponse": {
+                "required": [
+                    "employees"
+                ],
+                "properties": {
+                    "employees": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/CompanyEmployee"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CompanyEmployeeExtended"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/CompanyEmployeeFull"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployeesResponseBasic": {
+                "required": [
+                    "employees"
+                ],
+                "properties": {
+                    "employees": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanyEmployee"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployeeExtended": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/CompanyEmployee"
+                    },
+                    {
+                        "required": [
+                            "stats",
+                            "effectiveness"
+                        ],
+                        "properties": {
+                            "stats": {
+                                "$ref": "#/components/schemas/CompanyEmployeeStats"
+                            },
+                            "effectiveness": {
+                                "$ref": "#/components/schemas/CompanyEmployeeEffectiveness"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "CompanyEmployeeFull": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/CompanyEmployeeExtended"
+                    },
+                    {
+                        "required": [
+                            "joined_at",
+                            "wage",
+                            "value"
+                        ],
+                        "properties": {
+                            "joined_at": {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            "wage": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "value": {
+                                "description": "This value is null if you don't have a secretary.",
+                                "oneOf": [
+                                    {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "CompanyEmployeeStats": {
+                "required": [
+                    "manual_labor",
+                    "intelligence",
+                    "endurance"
+                ],
+                "properties": {
+                    "manual_labor": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "intelligence": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "endurance": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployeeEffectiveness": {
+                "required": [
+                    "working_stats",
+                    "settled_in",
+                    "book",
+                    "merits",
+                    "director_education",
+                    "management",
+                    "wrong_gender",
+                    "addiction",
+                    "inactivity",
+                    "total"
+                ],
+                "properties": {
+                    "working_stats": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "settled_in": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "book": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "merits": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "director_education": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "management": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "wrong_gender": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "addiction": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "inactivity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployee": {
+                "required": [
+                    "id",
+                    "name",
+                    "position",
+                    "days_in_company",
+                    "status",
+                    "last_action"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/UserId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "position": {
+                        "$ref": "#/components/schemas/CompanyEmployeePosition"
+                    },
+                    "days_in_company": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/UserStatus"
+                    },
+                    "last_action": {
+                        "$ref": "#/components/schemas/UserLastAction"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyEmployeePosition": {
+                "required": [
+                    "id",
+                    "name"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyPositionId"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyStockResponse": {
+                "required": [
+                    "stock"
+                ],
+                "properties": {
+                    "stock": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanyStockItem"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyStockItem": {
+                "required": [
+                    "name",
+                    "id",
+                    "cost",
+                    "rrp",
+                    "price",
+                    "in_stock",
+                    "on_order",
+                    "sold_amount",
+                    "sold_worth"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "cost": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "rrp": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "price": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "in_stock": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "on_order": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "sold_amount": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "sold_worth": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyApplicationsResponse": {
+                "required": [
+                    "applications"
+                ],
+                "properties": {
+                    "applications": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CompanyApplication"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyApplication": {
+                "required": [
+                    "player",
+                    "expires_at",
+                    "status",
+                    "message"
+                ],
+                "properties": {
+                    "player": {
+                        "$ref": "#/components/schemas/CompanyApplicationPlayer"
+                    },
+                    "message": {
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "expires_at": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/ApplicationStatusEnum"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyApplicationPlayer": {
+                "required": [
+                    "id",
+                    "name",
+                    "level",
+                    "stats"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/UserId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "level": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "stats": {
+                        "$ref": "#/components/schemas/CompanyApplicationPlayerStats"
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyApplicationPlayerStats": {
+                "required": [
+                    "manual_labor",
+                    "intelligence",
+                    "endurance"
+                ],
+                "properties": {
+                    "manual_labor": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "intelligence": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "endurance": {
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "type": "object"
@@ -28607,8 +30535,13 @@
                         "type": "integer",
                         "format": "int32"
                     },
+                    "rentals_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
+                    },
                     "_metadata": {
-                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
                     }
                 },
                 "type": "object"
@@ -28676,8 +30609,13 @@
                         "type": "integer",
                         "format": "int32"
                     },
+                    "properties_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
+                    },
                     "_metadata": {
-                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
                     }
                 },
                 "type": "object"
@@ -29160,6 +31098,11 @@
                         "description": "Timestamp when the data was globally cached at.",
                         "type": "integer",
                         "format": "int32"
+                    },
+                    "cache_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "type": "object"
@@ -29174,7 +31117,7 @@
                         "$ref": "#/components/schemas/ItemMarket"
                     },
                     "_metadata": {
-                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
                     }
                 },
                 "type": "object"
@@ -29810,8 +31753,16 @@
                         ],
                         "properties": {
                             "skill_gain": {
-                                "type": "number",
-                                "format": "float"
+                                "description": "This value is null for races which have status 'in_progress'",
+                                "oneOf": [
+                                    {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
                             }
                         },
                         "type": "object"
@@ -30592,9 +32543,6 @@
                     "required_item"
                 ],
                 "properties": {
-                    "id": {
-                        "$ref": "#/components/schemas/TornOrganizedCrimePositionIdDeprecated"
-                    },
                     "position_info": {
                         "$ref": "#/components/schemas/FactionSlotPositionInfo"
                     },
@@ -31648,6 +33596,7 @@
                 "required": [
                     "bounties",
                     "bounties_timestamp",
+                    "bounties_delay",
                     "_metadata"
                 ],
                 "properties": {
@@ -31661,8 +33610,13 @@
                         "type": "integer",
                         "format": "int32"
                     },
+                    "bounties_delay": {
+                        "description": "The minimum amount of time needed before the cache timestamp can change.",
+                        "type": "integer",
+                        "format": "int32"
+                    },
                     "_metadata": {
-                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
+                        "$ref": "#/components/schemas/RequestMetadataWithLinksAndTotal"
                     }
                 },
                 "type": "object"
@@ -31713,6 +33667,7 @@
                 "required": [
                     "id",
                     "name",
+                    "image",
                     "description",
                     "dual_fit",
                     "weapons"
@@ -31722,6 +33677,9 @@
                         "$ref": "#/components/schemas/ItemModId"
                     },
                     "name": {
+                        "type": "string"
+                    },
+                    "image": {
                         "type": "string"
                     },
                     "description": {
@@ -32223,6 +34181,33 @@
             }
         },
         "parameters": {
+            "ApiCompanySearchFilter": {
+                "name": "filters",
+                "in": "query",
+                "description": "A filtering query parameter allowing a comma-separated list of filters. <br>\n *  Each filter can be one of the following:\n *  Fixed options: `recruiting`, `notRecruiting`\n *  Dynamic options: `fieldName`+`condition`+`number`. Each dynamic filter is made out of 3 parts separated by colon `:`:\n *  * `fieldName` is one of: `id`, `type`, `daysOld`, `rating`, `dailyIncome`, `weeklyIncome`, `dailyCustomers`, `weeklyCustomers`\n *  * `condition` is one of: `=`, `!=`, `<`, `<=`, `>=`, `>`, `Equal`, `NotEqual`, `Less`, `LessOrEqual`, `GreaterOrEqual`, `Greater`\n *  * `number`: any integer value\n *  Examples: `filters=recruiting`, `filters=weeklyIncome:>=:20000,id:<:1000,notRecruiting`, `filters=type:Equal:10,rating:=:10,dailyIncome:<=:6666666`",
+                "required": false,
+                "style": "form",
+                "explode": false,
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "schema": "CompanySearchParameter",
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "recruiting",
+                                    "notRecruiting"
+                                ]
+                            },
+                            {
+                                "type": "string",
+                                "pattern": "^(id|type|daysOld|rating|dailyIncome|weeklyIncome|dailyCustomers|weeklyCustomers):(=|!=|<|<=|>=|>|Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater):\\d+$"
+                            }
+                        ]
+                    }
+                }
+            },
             "ApiKeyPublic": {
                 "name": "key",
                 "in": "query",
@@ -32262,10 +34247,18 @@
             "ApiTimestamp": {
                 "name": "timestamp",
                 "in": "query",
-                "description": "Timestamp to bypass cache",
+                "description": "Timestamp to bypass cache or get the data in specific point in time",
                 "required": false,
                 "schema": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "ApiFiltersIncomingOutgoing": {
@@ -32313,7 +34306,7 @@
             "ApiFactionSearchFilter": {
                 "name": "filters",
                 "in": "query",
-                "description": "A filtering query parameter allowing a comma-separated list of filters. <br>\n * Each filter can be one of the following:\n * Fixed options: 'destroyed', 'notDestroyed', 'recruiting', 'notRecruiting'\n * Dynamic options: `fieldName`+`condition`+`number`, where:\n * * `fieldName` is one of: `id`, `respect`, `members`\n * * `condition` is one of: `Equal`, `NotEqual`, `Less`, `LessOrEqual`, `GreaterOrEqual`, `Greater`\n * * `number`: any integer value\n * Examples: `filters=destroyed`, `filters=notDestroyed,recruiting`, `filters=respectLessOrEqual20000,idGreater100,notRecruiting`",
+                "description": "A filtering query parameter allowing a comma-separated list of filters. <br>\n * Each filter can be one of the following:\n * Fixed options: `destroyed`, `notDestroyed`, `recruiting`, `notRecruiting`\n * Dynamic options: `fieldName`+`condition`+`number`. Each dynamic filter is made out of 3 parts separated by colon `:`:\n * * `fieldName` is one of: `id`, `respect`, `members`, `membersMax`\n * * `condition` is one of: `=`, `!=`, `<`, `<=`, `>=`, `>`, `Equal`, `NotEqual`, `Less`, `LessOrEqual`, `GreaterOrEqual`, `Greater`\n * * `number`: any integer value\n * Examples: `filters=destroyed`, `filters=notDestroyed,recruiting`, `filters=respect:>=:20000,id:<:100,notRecruiting`",
                 "required": false,
                 "style": "form",
                 "explode": false,
@@ -32333,7 +34326,7 @@
                             },
                             {
                                 "type": "string",
-                                "pattern": "^(id|respect|members)(Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater)\\d+$"
+                                "pattern": "^(id|respect|members|membersMax):(=|!=|<|<=|>=|>|Equal|NotEqual|Less|LessOrEqual|GreaterOrEqual|Greater):\\d+$"
                             }
                         ]
                     }
@@ -32637,6 +34630,10 @@
         {
             "name": "Faction",
             "description": "Part of Faction section"
+        },
+        {
+            "name": "Company",
+            "description": "Part of Company section"
         },
         {
             "name": "Market",

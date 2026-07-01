@@ -12,5 +12,6 @@ type FactionRepository interface {
 	GetMembers(ctx context.Context) ([]domain.Member, error)
 	GetArmoryNews(ctx context.Context, from time.Time) ([]domain.XanaxUsage, error)
 	GetActiveCrimes(ctx context.Context) ([]domain.Crime, error)
+	GetPlanningCrimes(ctx context.Context) ([]domain.Crime, error)
 	GetCompletedCrimes(ctx context.Context, from time.Time) ([]domain.Crime, error)
 }
