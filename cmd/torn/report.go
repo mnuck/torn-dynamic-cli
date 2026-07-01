@@ -13,7 +13,7 @@ import (
 )
 
 // NewReportCmd returns a parent "report" command with subcommands attached.
-func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *services.HitService) *cobra.Command {
+func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *services.HitService, goodThugService *services.GoodThugService) *cobra.Command {
 	reportCmd := &cobra.Command{
 		Use:   "report",
 		Short: "Generate faction reports",
@@ -21,7 +21,7 @@ func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *ser
 	}
 
 	reportCmd.AddCommand(newFreeloadersCmd(freeloaderService))
-	reportCmd.AddCommand(newGoodThugsCmd())
+	reportCmd.AddCommand(newGoodThugsCmd(goodThugService))
 	reportCmd.AddCommand(newHitsCmd(hitService))
 	reportCmd.AddCommand(newLateOCsCmd())
 	reportCmd.AddCommand(newOCPayoutsCmd())

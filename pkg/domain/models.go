@@ -25,6 +25,13 @@ type Member struct {
 	Level         int
 	Position      string
 	DaysInFaction int
+	IsInOC        bool
+}
+
+// GoodThug represents a Thug-position member who has completed at least one OC.
+type GoodThug struct {
+	Member
+	OCCount int
 }
 
 // XanaxUsage represents a recorded instance of Xanax usage from the armory.

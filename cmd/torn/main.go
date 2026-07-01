@@ -28,9 +28,10 @@ func main() {
 	factionRepo := faction.NewTornFactionRepo(httpClient)
 	freeloaderService := services.NewFreeloaderService(factionRepo)
 	hitService := services.NewHitService(httpClient)
+	goodThugService := services.NewGoodThugService(factionRepo)
 
 	rootCmd := BuildCommands(spec)
-	rootCmd.AddCommand(NewReportCmd(freeloaderService, hitService))
+	rootCmd.AddCommand(NewReportCmd(freeloaderService, hitService, goodThugService))
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
