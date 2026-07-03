@@ -25,6 +25,7 @@ func NewReportCmd(freeloaderService *services.FreeloaderService, hitService *ser
 	reportCmd.AddCommand(newGoodThugsCmd(goodThugService))
 	reportCmd.AddCommand(newHitsCmd(hitService))
 	reportCmd.AddCommand(newLateOCsCmd(lateOCService))
+	reportCmd.AddCommand(newOCRiskCmd(tornClient))
 	reportCmd.AddCommand(newOCPayoutsCmd(ocPayoutService, tornClient))
 	reportCmd.AddCommand(newCompanyStatusCmd())
 	return reportCmd
