@@ -65,6 +65,7 @@ possible history, re-export from torn.report first, drop it in at the repo root 
 | `generate_racing_dashboard.sh` | this skill folder | Wrapper: `cd`s to repo root, forwards args to `python3 racing_dashboard.py` |
 | `racing_dashboard.py` | this skill folder | Self-contained generator. Fetch → cache → build HTML |
 | `cache_races.json` | repo root | Local race cache; preserves history past API retention — keep between runs |
+| `cars.json` | repo root | Per-car display config (name/color/shape), keyed by car_id; edit names here to relabel cars (e.g. give each Edomondo NSX a distinct nickname) — keep between runs |
 | `Racing.json` | repo root | Optional torn.report event-log export; **manually refreshed** (see note) |
 | `racing_dashboard.html` | repo root | Generated output |
 
