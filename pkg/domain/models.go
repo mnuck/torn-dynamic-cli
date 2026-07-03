@@ -26,6 +26,8 @@ type Member struct {
 	Position      string
 	DaysInFaction int
 	IsInOC        bool
+	Status        UserStatus
+	LastAction    UserAction
 }
 
 // GoodThug represents a Thug-position member who has completed at least one OC.
