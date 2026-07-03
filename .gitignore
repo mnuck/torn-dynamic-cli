@@ -9,6 +9,8 @@
 
 # Ad-hoc analysis scripts (not part of the Go build)
 *.py
+# ...but skill-owned generators ARE tracked alongside their skill
+!.agents/skills/**/*.py
 
 # Claude Code local settings (machine-specific, may contain secrets)
 .claude/settings.local.json
