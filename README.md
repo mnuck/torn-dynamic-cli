@@ -57,7 +57,7 @@ torn user --help
 ### Build from Source
 
 ```bash
-git clone https://github.com/matthewnuckolls/torn-dynamic-cli.git
+git clone https://github.com/mnuck/torn-dynamic-cli.git
 cd torn-dynamic-cli
 go build -o torn ./cmd/torn/
 ```

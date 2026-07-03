@@ -1,6 +1,6 @@
 ---
 id: torn-company-status
-name: Torn Company Status Report
+name: torn-company-status
 description: Daily company health check showing star rating risk, rank among peers, and income analysis
 source: learned
 triggers:
