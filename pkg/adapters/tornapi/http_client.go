@@ -96,6 +96,16 @@ func (c *HTTPClient) GetMembers(ctx context.Context) ([]domain.Member, error) {
 				Level         int    `json:"level"`
 				Position      string `json:"position"`
 				DaysInFaction int    `json:"days_in_faction"`
+				IsInOC        bool   `json:"is_in_oc"`
+				Status        struct {
+					State       string `json:"state"`
+					Description string `json:"description"`
+					Details     string `json:"details"`
+				} `json:"status"`
+				LastAction struct {
+					Status   string `json:"status"`
+					Relative string `json:"relative"`
+				} `json:"last_action"`
 			} `json:"members"`
 			Metadata *apiMetadata `json:"_metadata"`
 		}
@@ -112,6 +122,16 @@ func (c *HTTPClient) GetMembers(ctx context.Context) ([]domain.Member, error) {
 				Level:         m.Level,
 				Position:      m.Position,
 				DaysInFaction: m.DaysInFaction,
+				IsInOC:        m.IsInOC,
+				Status: domain.UserStatus{
+					State:       m.Status.State,
+					Description: m.Status.Description,
+					Details:     m.Status.Details,
+				},
+				LastAction: domain.UserAction{
+					Status:   m.LastAction.Status,
+					Relative: m.LastAction.Relative,
+				},
 			})
 		}
 
