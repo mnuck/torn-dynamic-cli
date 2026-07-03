@@ -66,7 +66,10 @@ _PALETTE = [
 ]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CARS_CONFIG_FILE = os.path.join(SCRIPT_DIR, "cars.json")
+# Default cars.json lives at the repo root (cwd), matching --output/--cache/--events,
+# not the skill script's own directory. (Historically this pointed at SCRIPT_DIR,
+# which silently split car naming across two divergent cars.json files.)
+CARS_CONFIG_FILE = "cars.json"
 
 CUTOFF = datetime(2025, 12, 12).timestamp()
 
@@ -203,23 +206,23 @@ def fetch_enlisted_cars(api_key):
     return {c["id"]: c for c in cars if not c.get("is_removed")}
 
 
-def load_cars_config():
+def load_cars_config(cars_file=CARS_CONFIG_FILE):
     """Load cars.json config, returning dict of car_id (int) -> style dict."""
-    if not os.path.exists(CARS_CONFIG_FILE):
+    if not os.path.exists(cars_file):
         return {}
-    with open(CARS_CONFIG_FILE) as f:
+    with open(cars_file) as f:
         raw = json.load(f)
     # Keys are stored as strings in JSON
     return {int(k): v for k, v in raw.items()}
 
 
-def save_cars_config(config):
+def save_cars_config(config, cars_file=CARS_CONFIG_FILE):
     """Save cars config to cars.json."""
-    with open(CARS_CONFIG_FILE, "w") as f:
+    with open(cars_file, "w") as f:
         json.dump({str(k): v for k, v in sorted(config.items())}, f, indent=2)
 
 
-def build_car_styles(api_key, races, user_id):
+def build_car_styles(api_key, races, user_id, cars_file=CARS_CONFIG_FILE):
     """Load or generate car styles config.
 
     On first run (no cars.json): fetches enlisted cars from API to get
@@ -227,7 +230,7 @@ def build_car_styles(api_key, races, user_id):
     On subsequent runs: loads cars.json, adds any new cars found in race data.
     Returns dict of car_id (int) -> {name, color, shape}.
     """
-    config = load_cars_config()
+    config = load_cars_config(cars_file)
 
     # Find car_ids the user personally drove
     seen_car_ids = set()
@@ -269,8 +272,8 @@ def build_car_styles(api_key, races, user_id):
             config[car_id] = {"name": name, "color": color, "shape": shape}
             print(f"  New car: {name} (id={car_id}, {color}, {shape})")
 
-        save_cars_config(config)
-        print(f"  Saved {CARS_CONFIG_FILE}")
+        save_cars_config(config, cars_file)
+        print(f"  Saved {cars_file}")
 
     return config
 
@@ -1476,6 +1479,8 @@ def main():
                         help="Cache file path (default: cache_races.json)")
     parser.add_argument("--events", default="Racing.json",
                         help="Optional Racing.json event log path")
+    parser.add_argument("--cars", default=CARS_CONFIG_FILE,
+                        help="Car name/style config path (default: cars.json)")
     parser.add_argument("--no-fetch", action="store_true",
                         help="Skip API fetch, rebuild from existing cache only")
     args = parser.parse_args()
@@ -1523,7 +1528,7 @@ def main():
 
     # --- Car styles (load config or auto-generate from API + race data) ---
     print("Loading car config ...")
-    car_styles = build_car_styles(args.key if not args.no_fetch else None, races, user_id)
+    car_styles = build_car_styles(args.key if not args.no_fetch else None, races, user_id, args.cars)
     print(f"  {len(car_styles)} cars configured")
 
     # --- Extract data ---
