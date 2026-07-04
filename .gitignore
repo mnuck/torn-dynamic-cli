@@ -7,6 +7,12 @@
 # Cached API responses and data files (root-level only)
 /*.json
 
+# Cached/derived data used by skills (regenerable, not source)
+/data/*.json
+
+# Generated reports/dashboards (regenerable output, not source)
+/generated/
+
 # Ad-hoc analysis scripts (not part of the Go build)
 *.py
 # ...but skill-owned generators ARE tracked alongside their skill
@@ -14,6 +20,9 @@
 
 # Claude Code local settings (machine-specific, may contain secrets)
 .claude/settings.local.json
+
+# Claude Code local launch config (drifts per-machine/session; not shared config)
+.claude/launch.json
 
 # OMC runtime state (ephemeral)
 .omc/sessions/

@@ -18,12 +18,12 @@ cd "$SKILL_DIR/../../.."          # repo root
 TORN="./torn"
 DATA="data"
 TEMPLATE="$SKILL_DIR/cpr_dashboard_template.html"
-OUT="cpr_dashboard.html"
+OUT="generated/cpr_dashboard.html"
 # Whose data is shown when the dashboard first opens.
 DEFAULT_MEMBER="${CPR_DEFAULT_MEMBER:-TheKillingJoke}"
 
 [ -x "$TORN" ] || { echo "error: $TORN not found/executable. Build it first: go build -o torn ./cmd/torn/" >&2; exit 1; }
-mkdir -p "$DATA"
+mkdir -p "$DATA" generated
 
 echo "==> [1/5] Fetching current faction members..."
 "$TORN" faction members > "$DATA/_members_raw.json"
