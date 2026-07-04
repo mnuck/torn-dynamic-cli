@@ -12,6 +12,13 @@ description: >
 
 # OC Spawn Planning
 
+> **Run the fetch/cache/CPR-grouping logic below exactly as written — don't reinvent it.**
+> The delta-fetch-with-dedup pattern, the `--from`/`--filters executed_at` pairing, the
+> per-(position, crime name) CPR grouping, and the Phase 4 position-fit check all exist
+> because a simpler/more obvious approach (full re-fetch every time, averaging CPR across
+> crime types, trusting slot counts alone) silently produced wrong numbers before. See
+> "Key gotchas" at the bottom for the specific failures each rule is guarding against.
+
 You're helping a Torn faction leader figure out which OC difficulty slots to spawn so that every member who needs one has a next OC ready. Run this once or twice a day.
 
 All `./torn` commands run from `/Users/mnuck/torn-dynamic-cli`.
