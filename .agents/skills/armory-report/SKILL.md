@@ -1,7 +1,7 @@
 ---
 id: armory-report
 name: armory-report
-description: Generate the faction armory restock report — checks combat armor, advanced armor, and medical supply inventory (accounting for loaned items) against target thresholds, prices each shortfall at current market value, and writes a Markdown report (`armory-report.md`) with per-item shortfalls, item-market links, and the total vault pull required to restock. Use this skill when the user asks to "refresh the armory report", "check the armory", "what do we need to buy for the armory", "generate the restock report", "how much to restock the faction", or any request to figure out what the faction armory is missing and what it will cost.
+description: Generate the faction armory restock report — checks combat armor, advanced armor, and medical supply inventory (accounting for loaned items) against target thresholds, prices each shortfall at current market value, and writes a Markdown report (`generated/armory-report.md`) with per-item shortfalls, item-market links, and the total vault pull required to restock. Use this skill when the user asks to "refresh the armory report", "check the armory", "what do we need to buy for the armory", "generate the restock report", "how much to restock the faction", or any request to figure out what the faction armory is missing and what it will cost.
 source: learned
 triggers:
   - armory report
@@ -28,7 +28,7 @@ Runs `.agents/skills/armory-report/generate_armory_report.sh`, which:
 2. Subtracts loaned units from on-hand quantity (loaned items are not available to draw on).
 3. Compares each item's *available* quantity against its target threshold (see below) and computes the shortfall.
 4. Multiplies the shortfall by the current market price to get a per-item and grand-total restock cost.
-5. Writes `armory-report.md` to the **current working directory** with a per-item breakdown, item-market links, and a "Pull $X from vault" summary line.
+5. Writes `generated/armory-report.md` (relative to the repo root) with a per-item breakdown, item-market links, and a "Pull $X from vault" summary line.
 
 ## Targets (hardcoded in the script — edit there to change)
 
@@ -50,7 +50,7 @@ cd /path/to/torn-dynamic-cli
 ./.agents/skills/armory-report/generate_armory_report.sh
 ```
 
-After completion the file `armory-report.md` will be written/overwritten in the cwd. The script also prints a one-line summary (total units + total cost) to stdout.
+After completion the file `generated/armory-report.md` will be written/overwritten (the script creates the `generated/` directory if needed). The script also prints a one-line summary (total units + total cost) to stdout.
 
 ## Prerequisites
 
@@ -64,4 +64,4 @@ After completion the file `armory-report.md` will be written/overwritten in the 
 - **Medical items have no `loaned` field**, so only `quantity` is used there.
 - **Market prices are `market_price`** from `torn torn items` (not lowest listed). Real bazaar/listing prices may be lower — the totals are an upper-bound estimate for budgeting.
 - **Item ID list is hardcoded.** If Torn adds a new armor or medical item you care about, add its ID to the `--ids` list and add corresponding `*_QTY` / `*_PRICE` / `*_NEED` / `*_COST` blocks plus a row in the generated Markdown template.
-- **Output overwrites in cwd.** Run from the project root (not from inside the skill directory) if you want the report to land alongside other repo reports.
+- **Output overwrites in `generated/`.** Run from the project root (not from inside the skill directory) so `generated/armory-report.md` lands alongside other generated reports. `generated/` is gitignored — it holds regenerable output, not source.

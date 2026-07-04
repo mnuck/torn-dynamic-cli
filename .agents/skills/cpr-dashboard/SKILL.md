@@ -12,7 +12,7 @@ description: >
 
 # CPR Dashboard
 
-Regenerates `cpr_dashboard.html` (repo root): a self-contained D3 visualization
+Regenerates `generated/cpr_dashboard.html`: a self-contained D3 visualization
 plotting each faction member's checkpoint pass rate per organized crime over time,
 filterable by member and crime type.
 
@@ -20,7 +20,7 @@ filterable by member and crime type.
 
 ```bash
 .agents/skills/cpr-dashboard/generate_cpr_dashboard.sh
-open cpr_dashboard.html
+open generated/cpr_dashboard.html
 ```
 
 Requires the built `./torn` binary (`go build -o torn ./cmd/torn/`) and a
@@ -41,7 +41,7 @@ To open the dashboard on someone else's data by default:
    `{name, difficulty, role, cpr, t, status, id}`, keyed by member name →
    `data/oc_by_member.json`.
 5. Inject the blob into `cpr_dashboard_template.html` (replacing the `__BY_MEMBER__`
-   token and setting `DEFAULT_MEMBER`) → `cpr_dashboard.html`.
+   token and setting `DEFAULT_MEMBER`) → `generated/cpr_dashboard.html`.
 
 ## What `status` is (important)
 
@@ -60,7 +60,10 @@ no cross-run accumulation needed.
 
 | File | Role |
 |------|------|
-| `generate_cpr_dashboard.sh` | Orchestrator — run from anywhere, writes `cpr_dashboard.html` to repo root |
+| `generate_cpr_dashboard.sh` | Orchestrator — run from anywhere, writes `generated/cpr_dashboard.html` |
 | `cpr_dashboard_template.html` | D3 dashboard with a `__BY_MEMBER__` data placeholder |
 | `data/oc_by_member.json` | Derived `BY_MEMBER` blob (regenerated each run) |
 | `data/oc_cache.json` | Raw crime history cache |
+
+`data/` and `generated/` are both gitignored — regenerable cache/config data and
+build output, not source.

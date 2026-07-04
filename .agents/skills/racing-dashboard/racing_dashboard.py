@@ -66,12 +66,20 @@ _PALETTE = [
 ]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Default cars.json lives at the repo root (cwd), matching --output/--cache/--events,
-# not the skill script's own directory. (Historically this pointed at SCRIPT_DIR,
-# which silently split car naming across two divergent cars.json files.)
-CARS_CONFIG_FILE = "cars.json"
+# Default cars.json lives under data/ at the repo root (cwd), matching
+# --output/--cache/--events, not the skill script's own directory.
+# (Historically this pointed at SCRIPT_DIR, which silently split car naming
+# across two divergent cars.json files.)
+CARS_CONFIG_FILE = "data/cars.json"
 
 CUTOFF = datetime(2025, 12, 12).timestamp()
+
+
+def _ensure_parent_dir(path):
+    """mkdir -p the parent directory of path, if any."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +226,7 @@ def load_cars_config(cars_file=CARS_CONFIG_FILE):
 
 def save_cars_config(config, cars_file=CARS_CONFIG_FILE):
     """Save cars config to cars.json."""
+    _ensure_parent_dir(cars_file)
     with open(cars_file, "w") as f:
         json.dump({str(k): v for k, v in sorted(config.items())}, f, indent=2)
 
@@ -340,6 +349,7 @@ def merge_and_save(existing, fresh, cache_file):
 
     merged = sorted(by_id.values(), key=lambda r: r["id"])
 
+    _ensure_parent_dir(cache_file)
     with open(cache_file, "w") as f:
         json.dump({"races": merged}, f, indent=2)
 
@@ -1473,14 +1483,14 @@ def main():
     )
     parser.add_argument("--key", default=os.environ.get("TORN_API_KEY", ""),
                         help="Torn API key (or set TORN_API_KEY env var)")
-    parser.add_argument("--output", default="racing_dashboard.html",
-                        help="Output HTML file (default: racing_dashboard.html)")
-    parser.add_argument("--cache", default="cache_races.json",
-                        help="Cache file path (default: cache_races.json)")
-    parser.add_argument("--events", default="Racing.json",
-                        help="Optional Racing.json event log path")
+    parser.add_argument("--output", default="generated/racing_dashboard.html",
+                        help="Output HTML file (default: generated/racing_dashboard.html)")
+    parser.add_argument("--cache", default="data/cache_races.json",
+                        help="Cache file path (default: data/cache_races.json)")
+    parser.add_argument("--events", default="data/Racing.json",
+                        help="Optional Racing.json event log path (default: data/Racing.json)")
     parser.add_argument("--cars", default=CARS_CONFIG_FILE,
-                        help="Car name/style config path (default: cars.json)")
+                        help="Car name/style config path (default: data/cars.json)")
     parser.add_argument("--no-fetch", action="store_true",
                         help="Skip API fetch, rebuild from existing cache only")
     args = parser.parse_args()
@@ -1554,6 +1564,7 @@ def main():
 
     # --- Generate ---
     html = generate_html(track_data, event_log, meta_data, car_styles)
+    _ensure_parent_dir(args.output)
     with open(args.output, "w") as f:
         f.write(html)
 

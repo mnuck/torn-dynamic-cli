@@ -183,7 +183,8 @@ format_number() {
 }
 
 # Generate report
-cat > armory-report.md << REPORT
+mkdir -p generated
+cat > generated/armory-report.md << REPORT
 ## Armory Check Report
 Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
@@ -233,7 +234,7 @@ _Medical targets: Empty Blood Bag x$EMPTY_BAG_TARGET, Small FAK x$SFAK_TARGET, F
 _Updated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")_
 REPORT
 
-echo "✓ Report generated: armory-report.md"
+echo "✓ Report generated: generated/armory-report.md"
 echo ""
 echo "=== Summary ==="
 echo "Total units needed: $TOTAL_UNITS"
