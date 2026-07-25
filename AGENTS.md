@@ -87,10 +87,21 @@ torn --help
 
 `.agents/skills/` contains agent skills and utilities:
 - `late-oc/` - Late OC investigation skill
+- `oc-spawning/generate_oc_spawn_report.sh` - OC spawn planning report; all fetch/CPR/demand logic lives in `oc_spawn_report.py` (agents run the script and interpret output, never reimplement the analysis). Caches executed crimes at `~/.torn_cache/executed_crimes_cache.json`
 - `torn-company-status/` - Company star rating risk analysis skill
 - `armory-report/generate_armory_report.sh` - Generates faction armory report; run from project root, writes `armory-report.md` to cwd
 - `cpr-dashboard/generate_cpr_dashboard.sh` - Refreshes `cpr_dashboard.html`, the D3 checkpoint-pass-rate visualization. Each record's `status` is the crime-level outcome (`Successful`/`Failure`), not the per-slot member outcome; the dashboard dims `Failure` points
 - `racing-dashboard/` - Self-contained: holds `racing_dashboard.py` and a `generate_racing_dashboard.sh` wrapper that `cd`s to repo root and forwards args to the Python script. Refreshes `racing_dashboard.html` at repo root. `Racing.json` (optional extended history) is manually exported from torn.report, not auto-fetched. The `*.py` gitignore rule has a `!.agents/skills/**/*.py` exception so the generator is tracked with the skill
+- `respect-dashboard/generate_respect_dashboard.sh` - Refreshes `generated/respect_dashboard.html`, the daily faction respect-gain visualization
+- `oc-dashboard/` - The faction Organized Crime revenue dashboard. Holds `dashboard.html` and `update_data.py` plus a `generate_oc_dashboard.sh` wrapper. **`dashboard.html` is an intentionally tracked HTML file** (not `generated/` output): it is both the page and the datastore — `update_data.py` injects and *freezes* each historical week's item rewards/costs into it in place, so old weeks are never repriced. Incremental by default (~10s, current week only); full rebuild only on schema migration. Each refresh is committed with a `Data refresh: N crimes...` message. `update_data.py` is self-contained (stdlib + `certifi`, no `torn` binary) and reads `TORN_API_KEY` from env or the repo-root `.env`
+- `oc-member-progression/` - Analytics skill (SKILL.md only) for OC member movement over time; reuses `oc-dashboard`'s `update_data.py` helpers via `sys.path`
+- `publish/` - Deploys the faction dashboard hub to Cloudflare Pages (see Dashboard Hub below)
+
+## Dashboard Hub / Deployment
+
+The faction runs a live dashboard hub on Cloudflare Pages, project `jokerz-oc-stats`, at **https://jokerz-oc-stats.pages.dev**. The OC revenue dashboard (`.agents/skills/oc-dashboard/dashboard.html`) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, track_odds, fastband, streakiness) are served from `generated/`.
+
+`.agents/skills/publish/deploy.sh` assembles a temp staging dir from a curated `MANIFEST` (edit the array in the script to change what ships) plus the OC dashboard as `index.html`, then runs `wrangler pages deploy`. It regenerates nothing — refresh each dashboard via its own skill first. Requires `wrangler` on `PATH` (the script sources nvm to find it). `.wrangler/` local state is gitignored. Use the `publish` skill for the full refresh → preview → deploy flow.
 
 ## Git Workflow
 

@@ -3,6 +3,7 @@
 
 # Environment / secrets
 .env
+.env*
 
 # Cached API responses and data files (root-level only)
 /*.json
@@ -18,6 +19,9 @@
 # ...but skill-owned generators ARE tracked alongside their skill
 !.agents/skills/**/*.py
 
+# Python bytecode cache
+__pycache__/
+
 # Claude Code local settings (machine-specific, may contain secrets)
 .claude/settings.local.json
 
@@ -27,3 +31,6 @@
 # OMC runtime state (ephemeral)
 .omc/sessions/
 .omc/state/
+
+# Cloudflare wrangler local state (created on first `publish` deploy)
+.wrangler/
