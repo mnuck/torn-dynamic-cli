@@ -6,6 +6,13 @@ description: >
 
 # OC Payout
 
+> **Run the commands in this doc, as written.** Don't hand-roll your own `curl` calls to
+> `api.torn.com`, don't re-derive the lateness/split logic from first principles, and don't
+> eyeball raw JSON instead of running the parsing snippets below. Every command and
+> threshold here (the `./torn` invocations, the ~90s server-lag rule, the 30-minute grace
+> period, the chain-crime handling) exists because an earlier, improvised attempt got it
+> wrong. Skipping the script is how that mistake repeats.
+
 You're helping a Torn faction leader pay out organized crimes fairly. The faction rule is
 simple: **people who were not in Torn when the OC fired don't get paid.** Your job is to
 tell them whether a crime was late, and if so, who to exclude and exactly how much to send

@@ -5,6 +5,14 @@ description: Use this skill when the user asks about late, delayed, or stuck org
 
 # Late OC Investigation
 
+> **Run the commands below, as written, instead of improvising your own API calls or SQL.**
+> `./torn report late-ocs` and `./torn report oc-risk` already fetch, filter, and cross-
+> reference correctly (parallel lookups, expired-OC filtering, the 30s server-lag
+> allowance) — hand-rolling a per-member `user profile` loop or your own crime filter is
+> slower and easy to get subtly wrong. Same goes for the BigQuery queries: use the exact
+> `SELECT`/window-function shape given, including `FORMAT_TIMESTAMP()` — raw epoch-ms
+> timestamps and ad hoc queries are how past investigations went sideways.
+
 All `./torn` commands must be run from `/Users/mnuck/torn-dynamic-cli`.
 
 You're helping a Torn faction leader build a case for who delayed an organized crime. Being outside of Torn when an OC is ready to fire is against faction rules. There are two questions to answer:

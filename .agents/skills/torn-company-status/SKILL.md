@@ -17,6 +17,13 @@ quality: high
 
 # Torn Company Status Report
 
+> **Use the exact endpoints and calculations below, not the v2 `torn` CLI or your own
+> company-ranking logic.** The company-list endpoint only exists in Torn API **v1**
+> (`/company/{type}?selections=companies`) — there is no v2 equivalent and no `torn`
+> subcommand for it, so this skill calls it directly with `curl`. That's intentional here,
+> not a shortcut to avoid. The risk tiering (rank within tier, pressure from the tier
+> below) is also specific — don't substitute a simpler income-threshold check.
+
 ## The Insight
 
 Star rating changes only happen on **Sundays**. The sole metric that determines rating is **weekly income** relative to other companies of the same type. Rating isn't a fixed income threshold — it's positional. A fixed-ish number of companies hold each star tier, so your risk depends on where you rank among peers and who's pushing from below.
