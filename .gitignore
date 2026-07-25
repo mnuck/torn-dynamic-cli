@@ -4,12 +4,19 @@
 # Environment / secrets
 .env
 .env*
+!.env.example
 
 # Cached API responses and data files (root-level only)
 /*.json
 
-# Cached/derived data used by skills (regenerable, not source)
-/data/*.json
+# Cached/derived data used by skills (regenerable, not source).
+# Everything under data/ at any depth -- data/cache/ and data/market-snapshots/
+# hold multi-megabyte API dumps that would otherwise sneak in. The fetch
+# scripts that produce these files ARE tracked; see data/README.md.
+/data/**/*.json
+/data/**/*.jsonl
+/data/**/*.csv
+/data/**/*.log
 
 # Generated reports/dashboards (regenerable output, not source)
 /generated/
@@ -34,3 +41,6 @@ __pycache__/
 
 # Cloudflare wrangler local state (created on first `publish` deploy)
 .wrangler/
+
+# macOS Finder metadata
+.DS_Store
