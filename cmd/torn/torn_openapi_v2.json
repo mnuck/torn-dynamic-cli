@@ -3,7 +3,7 @@
     "info": {
         "title": "Torn API",
         "description": "\n * The development of Torn's API v2 is still ongoing.\n * If selections remain unaltered, they will default to the API v1 version.\n * Unlike API v1, API v2 accepts both selections and IDs as path and query parameters.\n * If any discrepancies or errors are found, please submit a [bug report](https://www.torn.com/forums.php#/p=forums&f=19&b=0&a=0) on the Torn Forums.\n * In case you're using bots to check for changes on openapi.json file, make sure to specificy a custom user-agent header - CloudFlare sometimes prevents requests from default user-agents.",
-        "version": "6.0.0"
+        "version": "6.2.0"
     },
     "servers": [
         {
@@ -2380,7 +2380,7 @@
                 "tags": [
                     "User"
                 ],
-                "summary": "Get available slots for organized crimes with status 'Recruiting'",
+                "summary": "Get your available slots for organized crimes with status 'Recruiting'",
                 "description": "Requires minimal access key. <br>Unlike 'faction' -> 'crimes', this selection only shows empty slots, and only for crimes with the 'Recruiting' status.",
                 "operationId": "getMyAvailableOrganizedCrimes",
                 "parameters": [
@@ -2851,7 +2851,7 @@
                 "tags": [
                     "User"
                 ],
-                "summary": "Get user races",
+                "summary": "Get your races",
                 "description": "Requires minimal access key. <br>Returns a list of user races, ordered by race start timestamp.",
                 "operationId": "getMyRaces",
                 "parameters": [
@@ -5529,7 +5529,7 @@
                         "$ref": "#/components/parameters/ApiFactionSearchFilter"
                     },
                     {
-                        "$ref": "#/components/parameters/ApiLimit50Default20"
+                        "$ref": "#/components/parameters/ApiLimit100Default20"
                     },
                     {
                         "$ref": "#/components/parameters/ApiOffset"
@@ -5562,6 +5562,46 @@
                     }
                 ],
                 "x-stability": "Stable"
+            }
+        },
+        "/faction/snapshot": {
+            "get": {
+                "tags": [
+                    "Faction"
+                ],
+                "summary": "Get daily factions snapshot CSV",
+                "description": "Requires public access key.<br>Returns a CSV daily snapshot of factions.<br>This selection is standalone and cannot be used together with other selections.<br>\nCSV columns: id, name, tag, tag_image, banner_image, leader_id, co_leader_id, respect, days_old, rank, members, members_max, member_list, recruiting, destroyed_timestamp",
+                "operationId": "getFactionsSnapshot",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful CSV response",
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string",
+                                    "example": "id,name,tag,tag_image,banner_image,leader_id,co_leader_id,respect,days_old,rank,members,members_max,member_list,recruiting,destroyed_timestamp\\n33,Honour and Pride,H&P,33-0.png,861778851-33.jpg,68358,,132939,6657,13,3,20,[68358, 123013, 295496],1"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
             }
         },
         "/faction/stats": {
@@ -6797,7 +6837,7 @@
                         "$ref": "#/components/parameters/ApiCompanySearchFilter"
                     },
                     {
-                        "$ref": "#/components/parameters/ApiLimit50Default20"
+                        "$ref": "#/components/parameters/ApiLimit100Default20"
                     },
                     {
                         "$ref": "#/components/parameters/ApiOffset"
@@ -7754,7 +7794,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AuctionHouseListing"
+                                    "$ref": "#/components/schemas/AuctionHouseListingResponse"
                                 }
                             }
                         }
@@ -8356,7 +8396,7 @@
                                             "$ref": "#/components/schemas/AuctionHouseResponse"
                                         },
                                         {
-                                            "$ref": "#/components/schemas/AuctionHouseListing"
+                                            "$ref": "#/components/schemas/AuctionHouseListingResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/MarketPropertiesResponse"
@@ -10114,6 +10154,45 @@
                 "x-stability": "Stable"
             }
         },
+        "/torn/museum": {
+            "get": {
+                "tags": [
+                    "Torn"
+                ],
+                "summary": "Get all museum sets",
+                "description": "Requires public access key. <br>",
+                "operationId": "getTornMuseum",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TornMuseumResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
         "/torn/organizedcrimes": {
             "get": {
                 "tags": [
@@ -10666,6 +10745,9 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/AttackLogResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TornMuseumResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/TornStockDetailedResponse"
@@ -11793,7 +11875,7 @@
                     "FAD",
                     "FAE",
                     "FAF",
-                    "FAG",
+                    "XAG",
                     "FBA",
                     "FBB",
                     "FBC",
@@ -15673,7 +15755,8 @@
                 "type": "string",
                 "enum": [
                     "lost",
-                    "used"
+                    "used",
+                    "unused"
                 ]
             },
             "RaceId": {
@@ -18260,18 +18343,58 @@
             "UserTrade": {
                 "required": [
                     "id",
-                    "timestamp",
                     "user",
                     "trader",
-                    "items"
+                    "items",
+                    "completed_at",
+                    "expires_at",
+                    "modified_at"
                 ],
                 "properties": {
                     "id": {
                         "$ref": "#/components/schemas/TradeId"
                     },
                     "timestamp": {
+                        "description": "This field is depracted and replaced with 'completed_at' field.",
                         "type": "integer",
-                        "format": "int32"
+                        "format": "int32",
+                        "deprecated": true
+                    },
+                    "completed_at": {
+                        "description": "Populated when selected category is 'finished'.",
+                        "oneOf": [
+                            {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "expires_at": {
+                        "description": "Populated when selected category is 'ongoing'.",
+                        "oneOf": [
+                            {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "modified_at": {
+                        "description": "Populated when selected category is 'ongoing'.",
+                        "oneOf": [
+                            {
+                                "type": "integer",
+                                "format": "int32"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     },
                     "user": {
                         "$ref": "#/components/schemas/UserTradeParticipant"
@@ -18585,8 +18708,8 @@
                         "format": "int64"
                     },
                     "price": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "number",
+                        "format": "float"
                     },
                     "timestamp": {
                         "type": "integer",
@@ -18661,8 +18784,7 @@
             },
             "UserOrganizedCrimesResponse": {
                 "required": [
-                    "organizedcrimes",
-                    "_metadata"
+                    "organizedcrimes"
                 ],
                 "properties": {
                     "organizedcrimes": {
@@ -18670,9 +18792,6 @@
                         "items": {
                             "$ref": "#/components/schemas/FactionCrime"
                         }
-                    },
-                    "_metadata": {
-                        "$ref": "#/components/schemas/RequestMetadataWithLinks"
                     }
                 },
                 "type": "object"
@@ -19047,7 +19166,14 @@
                                     ],
                                     "properties": {
                                         "type": {
-                                            "$ref": "#/components/schemas/MissionRewardUpgrade"
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/MissionRewardUpgrade"
+                                                },
+                                                {
+                                                    "type": "string"
+                                                }
+                                            ]
                                         },
                                         "details": {
                                             "description": "The response depends on the 'type' value.",
@@ -19295,7 +19421,11 @@
             "UserBar": {
                 "required": [
                     "current",
-                    "maximum"
+                    "maximum",
+                    "increment",
+                    "interval",
+                    "tick_time",
+                    "full_time"
                 ],
                 "properties": {
                     "current": {
@@ -19303,6 +19433,22 @@
                         "format": "int32"
                     },
                     "maximum": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "increment": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "interval": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "tick_time": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "full_time": {
                         "type": "integer",
                         "format": "int32"
                     }
@@ -19488,7 +19634,14 @@
                         "type": "string"
                     },
                     "description": {
-                        "type": "string"
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     }
                 },
                 "type": "object"
@@ -20682,7 +20835,10 @@
                                 "type": "string",
                                 "enum": [
                                     "none",
-                                    "in_use"
+                                    "in_use",
+                                    "for_sale",
+                                    "rented",
+                                    "for_rent"
                                 ]
                             }
                         },
@@ -21748,7 +21904,6 @@
                     {
                         "required": [
                             "id",
-                            "name",
                             "worth",
                             "points_spent",
                             "races_entered",
@@ -21852,7 +22007,7 @@
             },
             "UserForumSubscribedThreadsResponse": {
                 "required": [
-                    "forumSbuscribedThreads"
+                    "forumSubscribedThreads"
                 ],
                 "properties": {
                     "forumSubscribedThreads": {
@@ -24310,7 +24465,7 @@
                             "elo",
                             "unarmored_wins",
                             "highest_level_beaten",
-                            "escpaes",
+                            "escapes",
                             "killstreak",
                             "hits",
                             "damage",
@@ -25769,10 +25924,7 @@
                 ],
                 "properties": {
                     "raidreport": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/FactionRaidReport"
-                        }
+                        "$ref": "#/components/schemas/FactionRaidReport"
                     }
                 },
                 "type": "object"
@@ -26391,10 +26543,7 @@
                 ],
                 "properties": {
                     "territorywarreport": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/FactionTerritoryWarReport"
-                        }
+                        "$ref": "#/components/schemas/FactionTerritoryWarReport"
                     }
                 },
                 "type": "object"
@@ -26639,7 +26788,7 @@
                     "ability",
                     "level",
                     "cost",
-                    "unlockedAt"
+                    "unlocked_at"
                 ],
                 "properties": {
                     "id": {
@@ -27978,7 +28127,7 @@
                     "retaliations",
                     "overseas",
                     "draws",
-                    "escpaces",
+                    "escapes",
                     "losses",
                     "war",
                     "bonuses"
@@ -29020,7 +29169,8 @@
                         "type": "string"
                     },
                     "storage_capacity": {
-                        "$ref": "#/components/schemas/CompanyStorageSizeEnum"
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "type": "object"
@@ -30425,6 +30575,17 @@
                                 "$ref": "#/components/schemas/TornItemDetails"
                             }
                         ]
+                    }
+                },
+                "type": "object"
+            },
+            "AuctionHouseListingResponse": {
+                "required": [
+                    "auctionhouselisting"
+                ],
+                "properties": {
+                    "auctionhouselisting": {
+                        "$ref": "#/components/schemas/AuctionHouseListing"
                     }
                 },
                 "type": "object"
@@ -31991,6 +32152,43 @@
                 },
                 "type": "object"
             },
+            "TornMuseumSet": {
+                "required": [
+                    "name",
+                    "points",
+                    "items"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "points": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ItemId"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "TornMuseumResponse": {
+                "required": [
+                    "museum"
+                ],
+                "properties": {
+                    "museum": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TornMuseumSet"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "TornStockDetailed": {
                 "allOf": [
                     {
@@ -32387,7 +32585,6 @@
                     "description",
                     "type",
                     "circulation",
-                    "equipped",
                     "rarity"
                 ],
                 "properties": {
@@ -32696,7 +32893,8 @@
                     "honor": {
                         "oneOf": [
                             {
-                                "type": "string"
+                                "type": "integer",
+                                "format": "int32"
                             },
                             {
                                 "type": "null"
@@ -33111,7 +33309,7 @@
                         "oneOf": [
                             {
                                 "type": "integer",
-                                "format": "int32"
+                                "format": "int64"
                             },
                             {
                                 "type": "string"
@@ -34137,6 +34335,7 @@
                             "lookup",
                             "medals",
                             "merits",
+                            "museum",
                             "organizedcrimes",
                             "properties",
                             "stocks",
