@@ -25,6 +25,9 @@
 *.py
 # ...but skill-owned generators ARE tracked alongside their skill
 !.agents/skills/**/*.py
+# ...and so is the deployed capture script (deploy/configmap.yaml is generated
+# from it, so it has to be tracked or the ConfigMap has no source)
+!deploy/*.py
 
 # Python bytecode cache
 __pycache__/
