@@ -1,7 +1,7 @@
 ---
 name: oc-member-progression
 description: >
-  Analyze Jokerz Torn organized-crime member movement over time. Use when the
+  Analyze our Torn faction's organized-crime member movement over time. Use when the
   user asks who is moving up, whether people are progressing into higher OC
   difficulties, whether cohorts are the same people over time, asks for an
   individual member's OC journey/timeline graph, or asks who "leveled up" /
@@ -119,7 +119,8 @@ name = profile.get("name") or str(uid)
 faction_id = profile.get("faction_id")
 ```
 
-Jokerz faction id is `38482`. Use it when the user asks who is still in Jokerz.
+Our faction id is in `.env` as `TORN_FACTION_ID`. Use it when the user asks who
+is still in the faction.
 
 ## Individual Journey Graphs
 
