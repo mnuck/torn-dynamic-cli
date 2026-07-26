@@ -126,7 +126,9 @@ torn --help
 
 ## Dashboard Hub / Deployment
 
-The faction runs a live dashboard hub on Cloudflare Pages, project `jokerz-oc-stats`, at **https://jokerz-oc-stats.pages.dev**. The OC revenue dashboard (`.agents/skills/oc-dashboard/dashboard.html`) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, track_odds, fastband, streakiness) are served from `generated/`.
+The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashboard (`.agents/skills/oc-dashboard/dashboard.html`) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, track_odds, fastband, streakiness) are served from `generated/`.
+
+**The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
 
 `.agents/skills/publish/deploy.sh` assembles a temp staging dir from a curated `MANIFEST` (edit the array in the script to change what ships) plus the OC dashboard as `index.html`, then runs `wrangler pages deploy`. It regenerates nothing — refresh each dashboard via its own skill first. Requires `wrangler` on `PATH` (the script sources nvm to find it). `.wrangler/` local state is gitignored. Use the `publish` skill for the full refresh → preview → deploy flow.
 

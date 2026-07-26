@@ -78,5 +78,4 @@ Theme: dark navy (`#1a1a2e`) with gold accents (`#c9a227`).
 ## Publishing
 
 `dashboard.html` is the home page (`index.html`) of the live faction dashboard
-hub. After refreshing, use the `publish` skill to deploy the hub to
-`https://jokerz-oc-stats.pages.dev`.
+hub. After refreshing, use the `publish` skill to deploy the hub.

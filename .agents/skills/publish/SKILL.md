@@ -1,8 +1,8 @@
 ---
 name: publish
 description: >
-  Deploy the faction dashboard hub to Cloudflare Pages
-  (jokerz-oc-stats.pages.dev). Use this skill whenever the user says "publish",
+  Deploy the faction dashboard hub to Cloudflare Pages. Use this skill
+  whenever the user says "publish",
   "deploy", "ship it", "push to prod", "update the live dashboards", or anything
   that implies refreshing the live faction dashboard site. The hub's home page is
   the OC revenue dashboard; the rest (cpr, racing, chain, respect, track_odds,
@@ -11,9 +11,14 @@ description: >
 
 # Publish Skill
 
-Ships the faction dashboard hub to Cloudflare Pages project `jokerz-oc-stats`,
-live at **https://jokerz-oc-stats.pages.dev**. Run all commands from the repo
-root.
+Ships the faction dashboard hub to Cloudflare Pages. Run all commands from the
+repo root.
+
+The Pages project name is **not** in the repo — it is also the public hostname,
+and this repo is public. `deploy.sh` reads `PAGES_PROJECT` from the environment
+or `.env` and derives the hub URL as `https://$PAGES_PROJECT.pages.dev`. If it
+is unset the script exits with instructions; do not hardcode a value to get
+past that.
 
 The deploy is a plain aggregation of files already on disk — it does **not**
 regenerate anything. Refresh whatever the user cares about first (see Step 1),
@@ -55,11 +60,11 @@ Once the user confirms:
 ```
 
 This assembles a temp staging dir (OC dashboard → `index.html`, plus the
-manifest files from `generated/`), runs `wrangler pages deploy` against project
-`jokerz-oc-stats`, and cleans up. Show the wrangler output.
+manifest files from `generated/`), runs `wrangler pages deploy` against the
+configured project, and cleans up. Show the wrangler output.
 
 Requires `wrangler` on `PATH` — the script sources nvm to find it. When
-complete, tell the user the live URL: **https://jokerz-oc-stats.pages.dev**
+complete, relay the live URL the script prints in its final line.
 
 ## Notes
 

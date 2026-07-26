@@ -11,7 +11,7 @@ Four moving parts, each usable on its own:
 |---|---|---|
 | **CLI** | `torn` — auto-generated commands for every GET endpoint in the Torn OpenAPI spec, plus hand-written faction reports | `cmd/torn/`, `pkg/` |
 | **Skills** | Agent skills that do the actual faction analysis: OC spawn planning, payouts, armory restock, war net-trade, race telemetry | `.agents/skills/` |
-| **Dashboard hub** | Live D3 dashboards on Cloudflare Pages | [jokerz-oc-stats.pages.dev](https://jokerz-oc-stats.pages.dev) |
+| **Dashboard hub** | Live D3 dashboards, deployed to Cloudflare Pages | `.agents/skills/publish/` |
 | **Capture + browser** | A k8s CronJob accumulating item-market price history; a Tampermonkey userscript | `deploy/`, `userscripts/` |
 
 ---
@@ -128,13 +128,16 @@ symlink to this directory.
 
 ### The dashboard hub
 
-The dashboards deploy to Cloudflare Pages at
-**[jokerz-oc-stats.pages.dev](https://jokerz-oc-stats.pages.dev)**. The OC
-revenue dashboard is the home page; the rest are served from `generated/`.
+The dashboards deploy to a Cloudflare Pages site. The OC revenue dashboard is
+the home page; the rest are served from `generated/`.
 
 ```bash
 .agents/skills/publish/deploy.sh
 ```
+
+Set `PAGES_PROJECT` in `.env` (or the environment) to your Pages project name;
+the hub URL is derived from it. It isn't committed, because the project name is
+also the public hostname.
 
 `deploy.sh` stages a curated `MANIFEST` and runs `wrangler pages deploy`. It
 **regenerates nothing** — refresh each dashboard through its own skill first.
