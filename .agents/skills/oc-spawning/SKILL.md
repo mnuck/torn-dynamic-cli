@@ -12,204 +12,72 @@ description: >
 
 # OC Spawn Planning
 
-> **Run the fetch/cache/CPR-grouping logic below exactly as written — don't reinvent it.**
-> The delta-fetch-with-dedup pattern, the `--from`/`--filters executed_at` pairing, the
-> per-(position, crime name) CPR grouping, and the Phase 4 position-fit check all exist
-> because a simpler/more obvious approach (full re-fetch every time, averaging CPR across
-> crime types, trusting slot counts alone) silently produced wrong numbers before. See
-> "Key gotchas" at the bottom for the specific failures each rule is guarding against.
+**All logic lives in `oc_spawn_report.py` (in this skill directory). Run it.
+Do not write your own analysis script, do not call the Torn API endpoints
+yourself, do not compute CPR trends or slot counts by hand.**
 
-You're helping a Torn faction leader figure out which OC difficulty slots to spawn so that every member who needs one has a next OC ready. Run this once or twice a day.
+## The only command you need
 
-All `./torn` commands run from `/Users/mnuck/torn-dynamic-cli`.
-
----
-
-## Phase 1: Gather data
-
-Fetch live data (run these in parallel — they change frequently):
 ```bash
-./torn faction crimes --cat planning > /tmp/planning_crimes.json
-./torn faction crimes --cat recruiting > /tmp/recruiting_crimes.json
-./torn faction members > /tmp/faction_members.json
+.agents/skills/oc-spawning/generate_oc_spawn_report.sh
 ```
 
-**Executed crimes — use the cache with incremental fetches.** Historical OC data never changes once an OC fires. Use `--from <max_executed_at> --filters executed_at` for efficient delta fetches — this returns only crimes that fired since the last cache entry, not the full dataset.
+Run it from anywhere (it changes to the repo root itself). The first ever run
+builds a cache of executed crimes and may take a minute; later runs take
+seconds. Progress messages go to stderr; the report goes to stdout.
 
-**Important:** `--from` only works correctly when paired with `--filters executed_at`. Without `--filters`, it uses a different default sort field and returns near the full dataset. Always use both together.
+The script handles everything that previously went wrong when done by hand:
+wall-clock reference time, full paginated history with caching and dedup,
+Successful/Failure status filtering, per-(position, crime name) CPR series,
+the promotion rubric, demand vs open recruiting slots, and position-fit.
 
-```python
-import json, os, time, subprocess
+## How to read the report
 
-CACHE = os.path.expanduser('~/.torn_cache/executed_crimes_cache.json')
-os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+The report has four sections:
 
-if os.path.exists(CACHE):
-    cache = json.load(open(CACHE))
-    existing = cache['crimes']
-    # Use the latest executed_at in cache as the delta boundary
-    exec_times = [c.get('executed_at') for c in existing if c.get('executed_at')]
-    last_executed = max(exec_times) if exec_times else 0
-else:
-    existing = []
-    last_executed = 0
+1. **TARGET MEMBERS** — everyone who needs a next OC: members in no
+   planning/recruiting slot ("free") plus members whose planning OC fires
+   within 24h ("completing"). Each line shows the recommended difficulty and
+   the CPR evidence behind it.
+2. **SLOTS NEEDED vs AVAILABLE** — per difficulty: who needs a slot, how many
+   open recruiting slots exist, and any `SHORT` amounts.
+3. **POSITION FIT** — for each open OC at a demanded difficulty, whether each
+   member has at least one qualifying position (CPR ≥ 70). A difficulty can
+   look "covered" by slot count while every open OC is the wrong *type* for a
+   member — this section catches that.
+4. **SPAWN RECOMMENDATION** — the bottom line. Relay this to the user,
+   enriched with names from section 2 and any wrong-OC-type warnings from
+   section 3.
 
-def run_torn(args, cwd='/Users/mnuck/torn-dynamic-cli', retries=5, delay=10):
-    """Run a torn command with retry on rate-limit (code 5)."""
-    import time
-    for attempt in range(retries):
-        r = subprocess.run(args, capture_output=True, text=True, cwd=cwd)
-        try:
-            data = json.loads(r.stdout)
-        except json.JSONDecodeError:
-            raise RuntimeError(f"Bad JSON: {r.stdout[:200]}")
-        if data.get('code') == 5:
-            print(f"Rate limited, retrying in {delay}s... (attempt {attempt+1}/{retries})")
-            time.sleep(delay)
-            continue
-        return data
-    raise RuntimeError("Rate limit retries exhausted")
+Symbols in section 3: `✓` qualifies (≥ 70), `⚠` below 70, `?` no history in
+that position, `~` before a number means the CPR came from a different crime
+type at that difficulty (approximate — same position, different hidden
+variables).
 
-if last_executed == 0:
-    # First run — full paginated fetch with rate-limit handling
-    print("No cache found — doing full fetch (this may take a minute)...")
-    all_raw = []
-    page = 1
-    while True:
-        data = run_torn(['./torn', 'faction', 'crimes', '--cat', 'executed',
-                         '--filters', 'executed_at', '--page', str(page)])
-        crimes_page = data.get('crimes', [])
-        if isinstance(crimes_page, dict):
-            crimes_page = list(crimes_page.values())
-        if not crimes_page:
-            break
-        all_raw.extend(crimes_page)
-        meta = data.get('_metadata', {})
-        if not meta.get('links', {}).get('next'):
-            break
-        page += 1
-        print(f"  Fetched page {page-1} ({len(all_raw)} crimes so far)...")
-    new_crimes = [c for c in all_raw if c.get('status') in ('Successful', 'Failure')]
-    print(f"Full fetch: {len(new_crimes)} completed crimes")
-else:
-    # Delta fetch — only crimes that fired since last cache entry
-    data = run_torn(['./torn', 'faction', 'crimes', '--cat', 'executed',
-                     '--from', str(last_executed), '--filters', 'executed_at'])
-    raw = data.get('crimes', [])
-    if isinstance(raw, dict): raw = list(raw.values())
-    new_crimes = [c for c in raw if c.get('executed_at', 0) > last_executed]
-    print(f"Delta fetch: {len(new_crimes)} new crimes since last run")
+## Answering the user
 
-all_crimes = existing + new_crimes
+- **"What do I need to spawn?"** — run the command, report the SPAWN
+  RECOMMENDATION section with the member names behind each shortfall, and
+  mention members who can't be placed in any currently-open OC (wrong type).
+- **"I spawned some OCs — does that cover it?"** — just re-run the same
+  command. It re-fetches live data; compare the new report. Do not recount
+  slots by hand.
+- **Recruit-rank members** — recruits can't join OCs. The script excludes
+  positions named `Recruit` by default and prints a NOTE if nothing matched.
+  If the user says their recruit rank has a different name, re-run with:
+  `.agents/skills/oc-spawning/generate_oc_spawn_report.sh --recruit-positions "Recruit,Trainee"`
+  If unsure whether the faction has recruit-rank members, ask the user.
 
-# DEDUP GUARD: collapse to one record per crime id. Delta fetches can overlap
-# (the boundary crime reappears, and occasional re-fetches double up), which
-# silently inflated the cache to ~73% duplicates once. Keep the record that has
-# executed_at when there's a conflict. Always dedup before writing.
-by_id = {}
-for c in all_crimes:
-    cid = c.get('id')
-    if cid is None:
-        continue
-    if cid not in by_id or (c.get('executed_at') and not by_id[cid].get('executed_at')):
-        by_id[cid] = c
-all_crimes = list(by_id.values())
+## Domain notes (for interpreting results, not for recomputing them)
 
-cache = {'fetched_at': int(time.time()), 'crimes': all_crimes}
-json.dump(cache, open(CACHE, 'w'))
-print(f"Cache: {len(all_crimes)} unique crimes")
-```
-
-Then work from `cache['crimes']` for CPR analysis. First run does a full fetch (can take a minute); subsequent runs only pull the tiny delta. The dedup guard keeps the cache clean even if a fetch overlaps — counts won't balloon again.
-
-**Who needs a slot?** There are two groups:
-
-1. **Free members** — faction members not currently in any planning or recruiting OC slot, excluding anyone in recruit rank (recruits can't join OCs). Ask the leader if you're unsure who is recruit status.
-
-2. **Completing members** — members in planning OCs whose `ready_at` is within the next 24 hours. These people will be free soon and need their next OC ready.
-
-**Target members** = free + completing (deduplicated). Planning and recruiting crime slots only contain user IDs, not names — cross-reference with faction members to get names.
-
----
-
-## Phase 2: Determine recommended difficulty for each member
-
-**CPR is deterministic, not noisy — but it's keyed on (position, crime name), not just position.** The same position label (e.g. "Engineer") appears across different OC crime types, and each crime type exercises different hidden variables — a member's CPR trajectory in "Engineer @ No Reserve" is independent of their trajectory in "Engineer @ Guardian Ángels." Collapsing multiple crime types into one position-level series manufactures the *appearance* of noise (a flat/bouncing read) when each individual (position, crime name) series is actually cleanly monotonically increasing. **Always split by (position, crime name) before judging a trend — never aggregate across crime types.**
-
-For each target member, scan the executed crimes history, strip position suffixes (e.g. "Muscle #1" → "Muscle"), and group by `(difficulty, position, crime name)`. Within each group, sort chronologically and look at the trend, not just a flattened max:
-
-- **Recent runs plateaued at/above 82** (e.g. last 3+ runs holding steady high) → strong bump case, this is a skill ceiling reached.
-- **Monotonically climbing but hasn't cleared 82 yet** → not yet a bump case on that series alone, but note the trajectory — a member can be climbing on multiple series simultaneously and some series may already be over threshold while others aren't. Read the member's *best* series, not the average across series.
-- **A single high value with no trend support (small sample, no climb)** → weak evidence, don't bump on this alone.
-
-**The rubric** (apply per member, using their strongest position+crime series at their highest attempted difficulty):
-
-| Situation | Recommendation |
-|-----------|---------------|
-| Best series is plateaued or trending ≥ 82 | Bump up one level |
-| Best series sits ≥ 70 but < 82, or is still climbing toward 82 without having reached it | Stay at that level |
-| Best series < 70 | Drop to the highest level where a series shows ≥ 70 |
-| No history at all | Default to difficulty 1 |
-
-Don't average CPR across different crime types at a difficulty — that's the mistake that flattens real, independent growth curves into false noise.
-
----
-
-## Phase 3: Compare demand vs available slots
-
-Count how many people need each difficulty level. Check recruiting crimes for open slots (slots with no user) by difficulty. The leader spawns OCs in bands — **report slot shortfalls, not OC counts**, since the leader doesn't control exact OC types within a band.
-
-**Report format:**
-
-```
-Slots needed (N members: X completing + Y free):
-  2 slots @ diff 8  → DarkEdge, Orochi              [0 available — SHORT]
-  4 slots @ diff 7  → CaptainChris, Cbatt, ...       [1 available — 3 SHORT]
-  5 slots @ diff 6  → ...                            [39 available — covered]
-  ...
-```
-
-Only list difficulties where at least one member needs a slot.
-
----
-
-## Phase 4: Position-fit verification
-
-When the leader says they've spawned new OCs and asks if they're covered, **don't just recount slots** — verify that specific positions in the new OCs actually match member strengths.
-
-For each newly available OC:
-1. Get its position list from the recruiting crimes
-2. For each member assigned to that difficulty, look up their best CPR per position at that difficulty from executed crimes
-3. Flag positions where best CPR < 70 with ⚠
-4. Explicitly state whether each member has at least one qualifying position (≥ 70) in that OC
-
-A member may be right for a difficulty band overall but have sub-70 CPR in every specific position that a particular OC offers — that OC type is wrong for them regardless of slot count.
-
-**Report format per OC:**
-
-```
-Clinical Precision d8 (id=1659310) — Imitator, Cat Burglar, Assassin, Cleaner
-  DarkEdge:  ✓ Assassin (74), ✓ Imitator (73), ⚠ Robber (66), ⚠ Muscle (66)
-  Orochi:    ✓ Assassin (72), ✓ Imitator (71), ⚠ Muscle (63)
-  → Both can be placed ✓
-
-Break the Bank d8 (id=1659293) — Robber, Muscle, Thief
-  DarkEdge:  ⚠ Robber (66), ⚠ Muscle (66), ⚠ Thief (67)
-  Orochi:    ⚠ Robber (64), ⚠ Muscle (63), ⚠ Thief (66)
-  → Neither can be placed — wrong OC type, needs Assassin or Imitator slots
-```
-
----
-
-## Key gotchas from real usage
-
-- **Planning/recruiting API responses don't include member names** — only IDs. Always cross-reference with the faction members endpoint.
-- **Slot user IDs are nested**: `slot['user']['id']`, NOT `slot['user_id']`. Always extract with a helper: `uid = slot.get('user_id') or (slot.get('user') or {}).get('id')`
-- **`checkpoint_pass_rate` is a plain integer**, not a dict with passed/total fields.
-- **Recruit-rank members cannot join OCs** — exclude them from the target list. The leader will confirm who these are.
-- **Don't use the "executing" crimes category** for current slots — it returns historical completed OCs, same as "executed".
-- **`--cat executed` does NOT filter by status** — it returns crimes of ALL statuses (Recruiting, Planning, Successful, Failure, Expired). Always filter in Python: `[c for c in crimes if c.get('status') in ('Successful', 'Failure')]`
-- **`--from` requires `--filters executed_at`** — without `--filters`, `--from` uses a default sort field and returns near the full dataset. Always pair them: `--from <max_executed_at> --filters executed_at`. Delta fetches using `max(executed_at)` from the cache as the boundary work correctly.
-- **Avoid `--all`** — it can trigger rate limits during long paginated fetches. For the initial full fetch, paginate manually using `--page` in a loop with rate-limit retry logic. Delta fetches never need `--all` since they return a single small page.
-- **Slot count ≠ fit** — always run Phase 4 after spawns to catch position mismatches.
-- **Always dedup the cache by crime `id` before writing** (the Phase 1 snippet does this). Overlapping delta fetches re-add the boundary crime, and once inflated the cache to ~73% duplicates — which silently skewed any count-based stat (late rates, blocker tallies). If a count ever looks 2–4× too big, dedup by `id` first.
+- The leader spawns OCs in difficulty bands and doesn't control exact OC
+  types — that's why the report gives slot shortfalls, not OC counts, and why
+  the position-fit section matters when picking which OC types to spawn.
+- CPR is deterministic per (position, crime name) series; the ≥ 82 plateau →
+  bump, ≥ 70 → qualified, < 70 → drop thresholds are already applied by the
+  script.
+- If the numbers look wildly off (e.g. hundreds of duplicate crimes), the
+  cache at `~/.torn_cache/executed_crimes_cache.json` can be deleted and the
+  script will rebuild it from scratch.
+- Report anything the script prints as a `NOTE:` or `ERROR:` to the user
+  verbatim rather than working around it.
