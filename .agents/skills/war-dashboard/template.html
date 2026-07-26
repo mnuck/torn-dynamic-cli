@@ -1,0 +1,355 @@
+<style>
+/* Jokerz hub house theme: navy panels, gold + cyan accents, Segoe UI (dark only).
+   Tokens live on .hub rather than :root, and the ground is pinned on both html
+   and body, so an Artifact viewer's light theme can't bleed through underneath. */
+html,body{background:#1a1a2e}
+.hub{
+  --plane:#1a1a2e; --surface:#16213e; --ink:#e0e0e0; --ink2:#a6a6bd; --muted:#888;
+  --border:#0f3460; --grid:#26264a; --axis:#33335a;
+  --accent:#48dbfb; --gold:#c9a227;
+  --pos:#4caf50; --neg:#e05555; --neutral:#5a5a78;
+  background:var(--plane);color:var(--ink);min-height:100vh;
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.45;
+}
+*{box-sizing:border-box}
+body{margin:0}
+.wrap{max-width:1000px;margin:0 auto;padding:26px 20px 40px}
+h1{font-size:26px;margin:0 0 4px;text-align:center;font-weight:bold}
+.sub{color:var(--muted);font-size:13px;margin:0 auto 22px;text-align:center;max-width:800px}
+.sub b{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:18px 22px 12px;margin:0 auto 22px}
+.card h2{font-size:17px;margin:0 0 3px;text-align:center}
+.card .h2sub{font-size:12px;color:var(--muted);margin:0 auto 14px;text-align:center;max-width:840px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 22px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:27px;font-weight:600;font-variant-numeric:tabular-nums;margin:3px 0 1px}
+.tile .n{font-size:11.5px;color:var(--ink2)}
+.tile.hero .v{color:var(--gold)} .tile.leakt .v{color:var(--neg)}
+.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:18px;font-size:12px;color:var(--ink2);margin:2px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.chartwrap{overflow-x:auto}
+svg{display:block;max-width:100%;margin:0 auto}
+.tt{position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:8px 11px;font-size:12px;color:var(--ink);
+  box-shadow:0 4px 14px rgba(0,0,0,.45);opacity:0;transition:opacity .08s;z-index:9;max-width:250px}
+.tt b{color:#fff} .tt .r{color:var(--muted)}
+.cf{display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap;padding:4px 0 14px}
+.cf .bar{height:34px;border-radius:5px;position:relative;min-width:60px}
+.cf .lbl{font-size:12px;color:var(--ink2);text-align:center;margin-top:7px}
+.cf .lbl b{color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:normal;cursor:pointer;user-select:none;
+  position:sticky;top:0;background:var(--surface)}
+th.active{color:var(--accent)}
+th.active::after{content:" \25BC";font-size:9px}
+th.asc.active::after{content:" \25B2"}
+tbody tr:hover{background:rgba(72,219,251,0.06)}
+.tablewrap{overflow-x:auto;max-height:600px;overflow-y:auto}
+.pill{font-size:11px;color:var(--muted)}
+.np{color:var(--pos)} .nn{color:var(--neg)}
+table.recon td{border-bottom:none;padding:5px 10px}
+table.recon td:first-child{color:var(--ink2);text-align:left;white-space:normal}
+table.recon tr.rule td{border-top:1px solid var(--border)}
+table.recon tr.tot td{font-weight:600}
+table.recon tr.tot td:last-child{color:var(--gold)}
+.note{font-size:12px;color:var(--ink2);background:rgba(72,219,251,.05);
+  border-left:2px solid var(--accent);padding:9px 13px;margin:12px 0 4px;border-radius:0 5px 5px 0}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:14px 0 6px}
+footer a{color:var(--accent);text-decoration:none}
+</style>
+<div class="hub">
+<div class="wrap">
+  <h1 id="hdr">War __WAR__ — Net Trade</h1>
+  <div class="sub" id="sub"></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card" id="recon" hidden>
+    <h2>Reconciling with the official score</h2>
+    <div class="h2sub">Chain-milestone bonuses are excluded from both sides, so the margin here sits
+      below Torn's. Here is the whole of the difference.</div>
+    <table class="recon"><tbody id="reconbody"></tbody></table>
+    <div class="note" id="reconnote"></div>
+  </div>
+
+  <div class="card">
+    <h2>Where the margin came from — and where it went back</h2>
+    <div class="h2sub">Every member as one bar, sorted by net trade. The line climbs through everyone
+      trading up, peaks, then gives ground back. The gap between the peak and the finish is respect we
+      generated and then handed straight back.</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--pos)"></i> dealt more than they gave up</span>
+      <span><i class="dot" style="background:var(--neg)"></i> gave up more than they dealt</span>
+      <span><i class="dot" style="background:var(--gold)"></i> running total</span>
+    </div>
+    <div class="chartwrap"><svg id="wf" viewBox="0 0 900 430" role="img"
+      aria-label="Waterfall of net respect trade by member"></svg></div>
+  </div>
+
+  <div class="card">
+    <h2>The line that matters</h2>
+    <div class="h2sub">Right = respect dealt · Up = respect given up · size = hits taken. Colour is net
+      trade. The diagonal is <i>gave up = dealt</i> — which side of it you land on is the whole story.</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--pos)"></i> below the line — traded up</span>
+      <span><i class="dot" style="background:var(--neg)"></i> above the line — they scored more off you</span>
+    </div>
+    <div class="chartwrap"><svg id="sc" viewBox="0 0 900 460" role="img"
+      aria-label="Respect dealt versus respect given up per member"></svg></div>
+  </div>
+
+  <div class="card">
+    <h2>The cheapest points on the board</h2>
+    <div class="h2sub" id="cfsub"></div>
+    <div class="cf" id="cf"></div>
+    <div class="note">Staying out of reach costs nothing and takes no energy. Hospitalise before logging
+      off, travel, or sit in jail — an unattended member is free score for the other faction. It's the one
+      improvement available to everyone regardless of stats.<br><br>
+      The ceiling above is not a target: you can't always get to safety before the first hit lands, and
+      people get caught mid-action. Treat it as the size of the opportunity, not points we should have
+      had.</div>
+  </div>
+
+  <div class="card">
+    <h2>Full roster <span class="pill">(click a header to sort)</span></h2>
+    <div class="h2sub"><i>Hits made</i> counts war hits landed, with assists and losses kept separate.
+      <i>Trade</i> is respect dealt per point given up. <i>War focus</i> is the share of a member's
+      attacks that were aimed at the war — a low figure means energy went somewhere else.</div>
+    <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+<div class="tt" id="tt"></div>
+</div>
+
+<script>
+const DATA = __DATA__;
+const NS='http://www.w3.org/2000/svg';
+const HUB=document.querySelector('.hub');
+const cvar=n=>getComputedStyle(HUB).getPropertyValue(n).trim();
+const f0=n=>Math.round(n).toLocaleString();
+const sgn=n=>(n>=0?'+':'−')+f0(Math.abs(n));
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+
+if(DATA.official){
+  document.getElementById('hdr').textContent=`${DATA.official.us_name} — War ${DATA.war} Net Trade`;
+  document.getElementById('foot').textContent=`${DATA.official.us_name} · war ${DATA.war}`;
+}
+document.getElementById('sub').innerHTML =
+  `War ${DATA.war} · generated ${DATA.generated} · war hits only · `+
+  `<b>${DATA.members.length}</b> members · chain-milestone bonuses excluded from <b>both</b> sides, `+
+  `so every figure here is respect traded hit-for-hit`;
+
+// ---------------------------------------------------- official reconciliation
+if(DATA.official){
+  const o=DATA.official, rows=[
+    [`Official war score — ${o.us_name} ${f0(o.us_score)} v ${o.them_name} ${f0(o.them_score)}`,
+      sgn(o.margin),''],
+    [`Chain bonuses we earned (excluded)`,sgn(-o.bonus_dealt),''],
+    [`Chain bonuses they earned off us (excluded)`,sgn(o.bonus_absorbed),'rule'],
+  ];
+  if(Math.abs(o.residual)>=1) rows.push([`Unreconciled`,sgn(-o.residual),'']);
+  rows.push([`Net trade shown on this page`,sgn(DATA.margin),'tot']);
+  document.getElementById('reconbody').innerHTML=rows.map(r=>
+    `<tr class="${r[2]}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  document.getElementById('reconnote').innerHTML=
+    `The opponent stacked ${f0(o.bonus_absorbed)} bonus points onto a single member out of a personal `+
+    `grudge, which would read as broad exposure rather than the one campaign it was — so those come out. `+
+    `Ours come out too, for symmetry: a margin built from bonuses on one side and not the other would not `+
+    `be a trade comparison. Torn's ${sgn(o.margin)} is the real result; ${sgn(DATA.margin)} is what we `+
+    `traded hit-for-hit.`;
+  document.getElementById('recon').hidden=false;
+}
+
+// ------------------------------------------------------------------- tiles
+const tiles=[
+  ['hero','Net trade',sgn(DATA.margin),
+     `${f0(DATA.total_dealt)} dealt − ${f0(DATA.total_absorbed)} given up`+
+     (DATA.official?` · official score ${sgn(DATA.official.margin)}`:'')],
+  ['','Respect dealt',f0(DATA.total_dealt),'what we took off them'],
+  ['','Respect given up',f0(DATA.total_absorbed),
+     `${Math.round(DATA.total_absorbed/DATA.total_dealt*100)}% of what we generated`],
+  ['leakt','Given up while not attacking',f0(DATA.leak),
+     `${DATA.n_quiet} members under ${DATA.threshold} dealt · ${Math.round(DATA.leak/DATA.total_absorbed*100)}% of all enemy score off us`],
+];
+document.getElementById('tiles').innerHTML=tiles.map(t=>
+  `<div class="tile ${t[0]}"><div class="k">${t[1]}</div><div class="v">${t[2]}</div>
+   <div class="n">${t[3]}</div></div>`).join('');
+
+const tt=document.getElementById('tt');
+function showTT(e,html){
+  tt.innerHTML=html; tt.style.opacity=1;
+  let lx=e.clientX+14, ly=e.clientY+14;
+  if(lx+250>innerWidth)lx=e.clientX-250;
+  if(ly+90>innerHeight)ly=e.clientY-90;
+  tt.style.left=lx+'px'; tt.style.top=ly+'px';
+}
+const hideTT=()=>tt.style.opacity=0;
+function memberTT(m){
+  const r=m.ratio===null?'never exposed':m.ratio.toFixed(2)+':1';
+  return `<b>${m.name}</b><br>`+
+    `<span class="r">dealt</span> ${f0(m.dealt)} · <span class="r">gave up</span> ${f0(m.absorbed)}<br>`+
+    `<span class="r">net</span> <b>${sgn(m.net)}</b> · <span class="r">trade</span> ${r}<br>`+
+    `<span class="r">hits</span> ${m.outhits} made / ${m.inhits} taken<br>`+
+    `<span class="r">hits</span> ${m.outhits} made · <span class="r">assists</span> ${m.assist}`+
+    `${m.nonwar?` · <span class="r">off-war</span> ${m.nonwar}`:''}`;
+}
+
+// --------------------------------------------------------------- waterfall
+(function(){
+  const svg=document.getElementById('wf'),W=900,H=430,m={t:26,r:16,b:56,l:62};
+  const pw=W-m.l-m.r, ph=H-m.t-m.b, ms=DATA.members, n=ms.length;
+  let run=0; const steps=ms.map(d=>{const a=run; run+=d.net; return {d,a,b:run};});
+  const hi=Math.max(DATA.peak,0)*1.08, lo=Math.min(0,...steps.map(s=>s.b));
+  const y=v=>m.t+ph-((v-lo)/(hi-lo))*ph;
+  const bw=pw/n;
+  for(let i=0;i<=4;i++){
+    const gv=lo+(hi-lo)*i/4, gy=y(gv);
+    svg.appendChild(el('line',{x1:m.l,y1:gy,x2:m.l+pw,y2:gy,stroke:cvar('--grid'),'stroke-width':1}));
+    const t=el('text',{x:m.l-8,y:gy+4,'text-anchor':'end','font-size':11,fill:cvar('--muted')});
+    t.textContent=f0(gv); svg.appendChild(t);
+  }
+  svg.appendChild(el('line',{x1:m.l,y1:y(0),x2:m.l+pw,y2:y(0),stroke:cvar('--axis'),'stroke-width':1.5}));
+  steps.forEach((s,i)=>{
+    const up=s.d.net>=0, top=y(Math.max(s.a,s.b)), bot=y(Math.min(s.a,s.b));
+    const r=el('rect',{x:m.l+i*bw+bw*0.12,y:top,width:Math.max(bw*0.76,1.2),
+      height:Math.max(bot-top,1),fill:cvar(up?'--pos':'--neg'),'fill-opacity':0.85});
+    r.style.cursor='pointer';
+    r.addEventListener('mousemove',e=>showTT(e,memberTT(s.d)));
+    r.addEventListener('mouseleave',hideTT);
+    svg.appendChild(r);
+  });
+  const pts=steps.map((s,i)=>`${m.l+i*bw+bw/2},${y(s.b)}`).join(' ');
+  svg.appendChild(el('polyline',{points:`${m.l},${y(0)} ${pts}`,fill:'none',
+    stroke:cvar('--gold'),'stroke-width':1.6,'stroke-opacity':0.9}));
+  // peak + finish markers
+  const pk=steps.reduce((a,s)=>s.b>a.b?s:a,steps[0]), pi=steps.indexOf(pk);
+  svg.appendChild(el('line',{x1:m.l,y1:y(pk.b),x2:m.l+pw,y2:y(pk.b),stroke:cvar('--gold'),
+    'stroke-width':1,'stroke-dasharray':'3 4','stroke-opacity':.55}));
+  const pt=el('text',{x:m.l+pw-4,y:y(pk.b)-7,'text-anchor':'end','font-size':11.5,fill:cvar('--gold')});
+  pt.textContent=`peak ${sgn(pk.b)} — net-positive traders alone`; svg.appendChild(pt);
+  const ft=el('text',{x:m.l+pw-4,y:y(DATA.margin)+16,'text-anchor':'end','font-size':11.5,
+    fill:cvar('--gold'),'font-weight':600});
+  ft.textContent=`finish ${sgn(DATA.margin)}`; svg.appendChild(ft);
+  // the give-back bracket
+  const bx=m.l+pi*bw+bw/2+18;
+  svg.appendChild(el('line',{x1:bx,y1:y(pk.b),x2:bx,y2:y(DATA.margin),stroke:cvar('--neg'),
+    'stroke-width':1.2,'stroke-opacity':.8}));
+  const gb=el('text',{x:bx+6,y:(y(pk.b)+y(DATA.margin))/2+4,'font-size':11.5,fill:cvar('--neg')});
+  gb.textContent=`${sgn(-DATA.gave_back)} given back`; svg.appendChild(gb);
+  const ax=el('text',{x:m.l+pw/2,y:H-8,'text-anchor':'middle','font-size':12,fill:cvar('--ink2')});
+  ax.textContent='members, best net trade → worst'; svg.appendChild(ax);
+  const ay=el('text',{x:-(m.t+ph/2),y:15,'text-anchor':'middle','font-size':12,
+    fill:cvar('--ink2'),transform:'rotate(-90)'});
+  ay.textContent='cumulative respect margin →'; svg.appendChild(ay);
+})();
+
+// ----------------------------------------------------------------- scatter
+(function(){
+  const svg=document.getElementById('sc'),W=900,H=460,m={t:16,r:18,b:46,l:58};
+  const pw=W-m.l-m.r, ph=H-m.t-m.b;
+  const hit=DATA.members.filter(d=>d.inhits>0);
+  const maxX=Math.max(...hit.map(d=>d.dealt))*1.06||1;
+  const maxY=Math.max(...hit.map(d=>d.absorbed))*1.06||1;
+  const x=v=>m.l+(v/maxX)*pw, y=v=>m.t+ph-(v/maxY)*ph, rr=v=>4+Math.sqrt(v)*1.7;
+  const mx=Math.max(...hit.map(d=>Math.abs(d.net)));
+  const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  const NEU=[90,90,120], POS=[76,175,80], NEG=[224,85,85];
+  const col=n=>{const t=Math.min(Math.abs(n)/mx,1)**0.55;
+    const c=mix(NEU,n>=0?POS:NEG,t); return `rgb(${c[0]},${c[1]},${c[2]})`;};
+  for(let i=0;i<=4;i++){
+    const gy=m.t+ph*i/4, gx=m.l+pw*i/4;
+    svg.appendChild(el('line',{x1:m.l,y1:gy,x2:m.l+pw,y2:gy,stroke:cvar('--grid'),'stroke-width':1}));
+    svg.appendChild(el('line',{x1:gx,y1:m.t,x2:gx,y2:m.t+ph,stroke:cvar('--grid'),'stroke-width':1}));
+    const ty=el('text',{x:m.l-8,y:gy+4,'text-anchor':'end','font-size':11,fill:cvar('--muted')});
+    ty.textContent=f0(maxY*(1-i/4)); svg.appendChild(ty);
+    const tx=el('text',{x:gx,y:H-m.b+18,'text-anchor':'middle','font-size':11,fill:cvar('--muted')});
+    tx.textContent=f0(maxX*i/4); svg.appendChild(tx);
+  }
+  // the diagonal -- the whole point of the chart
+  const V=Math.min(maxX,maxY);
+  svg.appendChild(el('line',{x1:x(0),y1:y(0),x2:x(V),y2:y(V),stroke:cvar('--ink2'),
+    'stroke-width':1.5,'stroke-opacity':0.75}));
+  // Label rides the line itself -- in-plot prose collides with the dot cloud.
+  const ang=Math.atan2(y(V)-y(0),x(V)-x(0))*180/Math.PI;
+  const lx=x(V*0.80), ly=y(V*0.80);
+  const dl=el('text',{x:lx,y:ly,'font-size':10.5,fill:cvar('--ink2'),'font-style':'italic',
+    'text-anchor':'middle',transform:`rotate(${ang} ${lx} ${ly}) translate(0 -6)`});
+  dl.textContent='gave up = dealt'; svg.appendChild(dl);
+  hit.slice().sort((a,b)=>Math.abs(a.net)-Math.abs(b.net)).forEach(d=>{
+    const c=el('circle',{cx:x(d.dealt),cy:y(d.absorbed),r:rr(d.inhits),fill:col(d.net),
+      'fill-opacity':0.8,stroke:cvar('--surface'),'stroke-width':1.5});
+    c.style.cursor='pointer';
+    c.addEventListener('mousemove',e=>showTT(e,memberTT(d)));
+    c.addEventListener('mouseleave',hideTT);
+    svg.appendChild(c);
+  });
+  hit.slice().sort((a,b)=>Math.abs(b.net)-Math.abs(a.net)).slice(0,7).forEach(d=>{
+    // Flip the label to the dot's left when it would run past the plot edge.
+    const w=d.name.length*6.2, right=x(d.dealt)+rr(d.inhits)+3;
+    const flip=right+w>m.l+pw;
+    const t=el('text',{x:flip?x(d.dealt)-rr(d.inhits)-3:right,y:y(d.absorbed)+4,'font-size':11,
+      fill:cvar('--ink'),'font-weight':600,'text-anchor':flip?'end':'start'});
+    t.textContent=d.name; svg.appendChild(t);
+  });
+  const ax=el('text',{x:m.l+pw/2,y:H-6,'text-anchor':'middle','font-size':12,fill:cvar('--ink2')});
+  ax.textContent='respect dealt →'; svg.appendChild(ax);
+  const ay=el('text',{x:-(m.t+ph/2),y:15,'text-anchor':'middle','font-size':12,
+    fill:cvar('--ink2'),transform:'rotate(-90)'});
+  ay.textContent='respect given up →'; svg.appendChild(ay);
+})();
+
+// ---------------------------------------------------------- counterfactual
+document.getElementById('cfsub').innerHTML =
+  `<b>${DATA.n_quiet}</b> members dealt under ${DATA.threshold} respect and gave up `+
+  `<b>${f0(DATA.leak)}</b> between them — more than the entire margin we won by. `+
+  `Unlike out-hitting the enemy, this is a cost that shrinks without anyone spending energy.`;
+(function(){
+  const w=v=>Math.max(Math.round(v/DATA.counterfactual*300),40);
+  document.getElementById('cf').innerHTML=`
+    <div><div class="bar" style="width:${w(DATA.margin)}px;background:var(--gold)"></div>
+      <div class="lbl">actual margin<br><b>${sgn(DATA.margin)}</b></div></div>
+    <div><div class="bar" style="width:${w(DATA.counterfactual)}px;
+      background:linear-gradient(90deg,var(--gold) ${DATA.margin/DATA.counterfactual*100}%,var(--pos) 0)">
+      </div><div class="lbl">ceiling if that exposure went to zero<br>
+      <b>${sgn(DATA.counterfactual)}</b> <span class="pill">upper bound</span></div></div>`;
+})();
+
+// ------------------------------------------------------------------- table
+const cols=[['name','Member'],['dealt','Dealt'],['absorbed','Gave up'],['net','Net'],['ratio','Trade'],
+  ['outhits','Hits made'],['assist','Assists'],['inhits','Hits taken'],['hosp','Hosp’d'],
+  ['stealth','Cloaked'],['focus','War focus']];
+const thead=document.querySelector('#tbl thead'), tbody=document.querySelector('#tbl tbody');
+let sortKey='net', asc=false;
+thead.innerHTML='<tr>'+cols.map(c=>`<th data-k="${c[0]}">${c[1]}</th>`).join('')+'</tr>';
+function render(){
+  const rows=DATA.members.slice().sort((a,b)=>{
+    let va=a[sortKey],vb=b[sortKey];
+    if(typeof va==='string')return asc?va.localeCompare(vb):vb.localeCompare(va);
+    if(va===null)va=-Infinity; if(vb===null)vb=-Infinity;
+    return asc?va-vb:vb-va;
+  });
+  tbody.innerHTML=rows.map(m=>'<tr>'+cols.map(c=>{
+    const k=c[0], v=m[k];
+    if(k==='name')return `<td>${m.name}</td>`;
+    if(v===null)return `<td class="pill">—</td>`;
+    if(k==='net')return `<td class="${v>=0?'np':'nn'}">${sgn(v)}</td>`;
+    if(k==='ratio')return `<td>${v.toFixed(2)}</td>`;
+    if(k==='focus')return `<td>${v}%</td>`;
+    return `<td>${f0(v)}</td>`;
+  }).join('')+'</tr>').join('');
+  thead.querySelectorAll('th').forEach(th=>{
+    th.classList.toggle('active',th.dataset.k===sortKey);
+    th.classList.toggle('asc',th.dataset.k===sortKey&&asc);
+  });
+}
+thead.addEventListener('click',e=>{const th=e.target.closest('th');if(!th)return;
+  const k=th.dataset.k; if(k===sortKey)asc=!asc; else{sortKey=k;asc=(k==='name');} render();});
+render();
+</script>
