@@ -178,6 +178,9 @@ function render() {
       d3.descending(a[1][0].difficulty, b[1][0].difficulty) ||
       d3.ascending(d3.mean(a[1], d=>d.cpr), d3.mean(b[1], d=>d.cpr)));
 
+  const now = new Date();
+  const [globalXlo] = d3.extent(DATA, d=>d.date);
+
   for (const [name, rows] of byCrime) {
     const diff = rows[0].difficulty;
     const roles = d3.groups(rows, d => d.role)
@@ -200,10 +203,9 @@ function render() {
     const svg = card.append("svg").attr("width","100%").attr("viewBox",`0 0 ${W} ${H}`);
     const g = svg.append("g").attr("transform",`translate(${M.l},${M.t})`);
 
-    const x = d3.scaleTime().domain(d3.extent(rows, d=>d.date)).range([0,iw]).nice();
-    if (+x.domain()[0] === +x.domain()[1]) {
-      const c=x.domain()[0]; x.domain([d3.timeDay.offset(c,-1), d3.timeDay.offset(c,1)]);
-    }
+    let xlo = globalXlo;
+    if (+xlo >= +now) xlo = d3.timeDay.offset(now, -1);
+    const x = d3.scaleTime().domain([xlo, now]).range([0,iw]);
     let [ylo,yhi] = d3.extent(rows, d=>d.cpr);
     const pad = Math.max(2, (yhi-ylo)*0.15);
     ylo = Math.max(0, Math.floor((ylo-pad)/5)*5);
@@ -227,7 +229,7 @@ function render() {
         for (let i=0;i<xs.length;i++){ num+=(xs[i]-mx)*(ys[i]-my); den+=(xs[i]-mx)**2; }
         if (den>0) {
           const m=num/den, b=my-m*mx;
-          const x0=xs[0], x1=xs[xs.length-1];
+          const x0=xs[0], x1=+now;
           g.append("line").attr("stroke",color(role)).attr("stroke-width",1)
             .attr("stroke-opacity",0.4).attr("stroke-dasharray","4,3")
             .attr("x1",x(new Date(x0))).attr("y1",y(m*x0+b))
