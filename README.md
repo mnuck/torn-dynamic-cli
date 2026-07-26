@@ -1,310 +1,231 @@
 # torn-dynamic-cli
 
-A powerful dynamic CLI tool for the Torn API v2. Instead of hand-coding commands for each endpoint, **torn** embeds the full OpenAPI spec at compile time and auto-generates Cobra commands for every GET endpoint. Works with the official Torn game API.
+Tooling for running a [Torn](https://www.torn.com/) faction. It started as a
+dynamic CLI over the Torn API v2 and grew into everything around it — the
+analysis skills, the live dashboard hub, a price-capture CronJob, and a
+browser userscript.
 
-## Quick Start
+Four moving parts, each usable on its own:
+
+| | What | Where |
+|---|---|---|
+| **CLI** | `torn` — auto-generated commands for every GET endpoint in the Torn OpenAPI spec, plus hand-written faction reports | `cmd/torn/`, `pkg/` |
+| **Skills** | Agent skills that do the actual faction analysis: OC spawn planning, payouts, armory restock, war net-trade, race telemetry | `.agents/skills/` |
+| **Dashboard hub** | Live D3 dashboards on Cloudflare Pages | [jokerz-oc-stats.pages.dev](https://jokerz-oc-stats.pages.dev) |
+| **Capture + browser** | A k8s CronJob accumulating item-market price history; a Tampermonkey userscript | `deploy/`, `userscripts/` |
+
+---
+
+## The CLI
+
+Instead of hand-coding a command per endpoint, `torn` embeds the full OpenAPI
+spec at compile time and generates a Cobra command tree from it. New Torn
+endpoints become new commands on the next spec pull, with no code change.
+
+### Quick start
 
 ```bash
-# Build from source
 go build -o torn ./cmd/torn/
-
-# Set your API key
 export TORN_API_KEY=your_api_key_here
 
-# Try it
 ./torn user profile --id 2048015
 ./torn faction members
 ./torn --help
 ```
 
-## What It Does
+The key is read from `--key`, then `$TORN_API_KEY`, then `.env` — in that
+order — and sent as `Authorization: ApiKey <key>`.
 
-**torn** is built on auto-generation, not manual configuration:
+### Generated commands
 
-- **Reads the OpenAPI spec** at compile time and embeds it in the binary
-- **Auto-generates commands** for every GET endpoint (no hand-coded endpoints)
-- **Smart parameter handling**: Path params become `--flag` options
-- **Auto-pagination**: Use `--all` to fetch every page of results
-- **Custom reports**: High-level analytical commands for faction data
-
-### Example Commands
+Path parameters become flags. **Omitting one strips that URL segment**, which
+is how Torn expresses "the current user":
 
 ```bash
-# Auto-generated commands (from OpenAPI spec)
-torn user profile --id 2048015
-torn user events --all --from 1700000000
-torn faction members
-torn faction news --all
-torn market items --id 1
-
-# Custom reports
-torn report hits --name BizzyTheBeast --days 7
-torn report freeloaders
-torn report goodthugs
-
-# Get help
-torn --help
-torn user --help
+./torn user profile --id 2048015   # GET /user/2048015/profile
+./torn user profile                # GET /user/profile — whoever owns the key
 ```
 
-## Installation
-
-### Prerequisites
-
-- **Go 1.24.4** or later
-- **A Torn API key** (get one at https://www.torn.com/preferences.php?cat=api)
-
-### Build from Source
+Query parameters from the spec become flags too:
 
 ```bash
-git clone https://github.com/mnuck/torn-dynamic-cli.git
-cd torn-dynamic-cli
-go build -o torn ./cmd/torn/
+./torn user events --id 2048015 --from 1700000000 --to 1700086400 --limit 100
 ```
 
-**Optional:** Add `torn` to your `$PATH`
+Direct-by-ID endpoints take the shape `/{category}/{paramId}/{resource}` and
+map to `torn <category> <resource> --<paramId> <id>`. **Prefer these over
+fetching a full list whenever you already have the ID:**
 
 ```bash
-sudo mv torn /usr/local/bin/
-```
-
-## Configuration
-
-### API Key
-
-Set your API key in one of these ways:
-
-**Option 1: Environment variable (recommended)**
-```bash
-export TORN_API_KEY=your_api_key_here
-./torn user profile
-```
-
-**Option 2: .env file**
-Create a `.env` file in the project root:
-```bash
-echo "TORN_API_KEY=your_api_key_here" > .env
-./torn user profile
-```
-
-**Option 3: Command-line flag**
-```bash
-./torn user profile --key your_api_key_here
-```
-
-## Usage
-
-### Auto-Generated Commands
-
-The CLI reads the embedded OpenAPI spec and generates commands dynamically. Each path becomes a command, each operation becomes a subcommand.
-
-**Path parameters** (like `{id}`) are converted to `--flag` options:
-
-```bash
-# GET /user/{id}/profile → torn user profile --id 2048015
-torn user profile --id 2048015
-
-# GET /faction/{id}/members → torn faction members --id 12345
-torn faction members --id 12345
-```
-
-**Omitting a path parameter** strips that segment from the URL. This is how Torn API handles "current user":
-
-```bash
-# Omit --id → /user/profile (current user, no ID needed)
-torn user profile
-```
-
-### Query Parameters
-
-Query parameters from the OpenAPI spec become flags:
-
-```bash
-# GET /user/{id}/events?from=X&to=Y&limit=Z
-torn user events --id 2048015 --from 1700000000 --to 1700086400 --limit 100
+./torn faction crime --crimeId 1234567   # not: fetch every crime and filter
 ```
 
 ### Pagination
 
-Use `--all` to automatically fetch every page of results. The CLI follows `_metadata.links.next` (or `_metadata.links.prev`) until no more pages exist:
+`--all` walks every page, following `_metadata.links.next` — or `prev` for the
+endpoints that only paginate backwards, decided once from page one and held
+for the whole walk. Broken pipes stop the walk cleanly, so this terminates
+after the first match instead of fetching your entire history:
 
 ```bash
-# Fetch all events
-torn user events --all
-
-# Combine with other filters
-torn user events --all --from 1700000000
+./torn user events --all | grep -m 1 "attack"
 ```
 
-**Note:** Pagination respects graceful pipe-breaks (e.g., stopping when grep finds a match):
+### Reports
+
+Hand-written analysis on top of the generated commands:
 
 ```bash
-# Stops automatically when grep finds the first match
-torn user events --all | grep -m 1 "attack"
+./torn report hits --name <member> --days 7   # outgoing hit history
+./torn report freeloaders                     # faction Xanax used, but no OC participation
+./torn report goodthugs                       # Thugs with a completed OC, ready to promote
+./torn report late-ocs                        # OCs past their ready time
+./torn report oc-risk                         # OCs predicted to go late
+./torn report oc-payouts                      # completed OCs awaiting payout
+./torn report company                         # company star-rating health
 ```
 
-### Help
+---
+
+## Skills
+
+`.agents/skills/` holds the agent skills — this is where most of the actual
+faction analysis lives. Each has a `SKILL.md` describing when to use it and
+what its numbers mean; several own a generator script. `.claude/skills` is a
+symlink to this directory.
+
+**Organized crime**
+
+| Skill | What it answers |
+|---|---|
+| `oc-spawning` | Which OC difficulties to spawn today, and whether members can actually fill the open slots |
+| `oc-payout` | Splitting a fired OC's reward, accounting for lateness and absent members |
+| `late-oc` | Who is blocking a late OC, and who was absent when it went ready |
+| `oc-dashboard` | The OC revenue dashboard — revenue, profit, win rate, person-day efficiency |
+| `oc-member-progression` | Who is moving up in difficulty over time; individual member journeys |
+| `cpr-dashboard` | Per-member checkpoint pass rates per crime, over time |
+
+**War, faction, and economy**
+
+| Skill | What it answers |
+|---|---|
+| `war-dashboard` | Ranked-war net trade — respect dealt minus respect given up, per member |
+| `respect-dashboard` | Daily faction respect gained vs. lost, split ranked-war vs. other |
+| `chain-dashboard` | Animated hit race — who is carrying a chain |
+| `armory-report` | What the armory is short of, and what restocking costs |
+| `torn-company-status` | Company star-rating risk and rank among peers |
+
+**Racing**
+
+| Skill | What it answers |
+|---|---|
+| `racing-dashboard` | Race finishes, podiums, per-track and per-car performance |
+| `fast-band-delta` | Where a race was won or lost, with the engine's hidden coin removed — plus a generative model for record odds |
+
+**Meta**
+
+`build-cli` (pull spec → vet → test → build) and `publish` (deploy the hub).
+
+### The dashboard hub
+
+The dashboards deploy to Cloudflare Pages at
+**[jokerz-oc-stats.pages.dev](https://jokerz-oc-stats.pages.dev)**. The OC
+revenue dashboard is the home page; the rest are served from `generated/`.
 
 ```bash
-# Top-level help
-torn --help
-
-# Command help
-torn user --help
-torn faction --help
-
-# Subcommand help
-torn user profile --help
+.agents/skills/publish/deploy.sh
 ```
 
-## Custom Reports
+`deploy.sh` stages a curated `MANIFEST` and runs `wrangler pages deploy`. It
+**regenerates nothing** — refresh each dashboard through its own skill first.
+It pins the Pages branch and verifies a manifest file actually serves from the
+live hub afterwards, because a preview-only deploy returns 200 for every path
+and otherwise looks like success.
 
-Beyond auto-generated commands, **torn** includes high-level analytical reports:
+---
 
-### Hits Report
+## Price capture (`deploy/`)
 
-Track outgoing attacks for a specific member:
+A Kubernetes CronJob that snapshots the item market every 30 minutes and
+appends to a `prices.jsonl` on a PVC. It exists because item prices are only
+available *now* — the API has no price-history endpoint — so the series has to
+be accumulated by something that keeps running.
 
-```bash
-torn report hits --name BizzyTheBeast --days 7
-```
+`deploy/capture.py` is the source of truth; `configmap.yaml` is generated from
+it by `render-configmap.sh`. See [deploy/README.md](deploy/README.md).
 
-Shows all attacks over the last N days with targets, outcomes, and timestamps.
+## Userscript (`userscripts/`)
 
-### Freeloaders Report
+`torn-race-standings.user.js` adds a button that reveals a race's final
+standings instantly, decoding the per-segment times Torn already delivered in
+the page payload. See [userscripts/README.md](userscripts/README.md).
 
-Identify faction members who are using Xanax but not participating in Organized Crime:
+## Data (`data/`)
 
-```bash
-torn report freeloaders
-```
+Fetched API dumps and telemetry used by the skills. **Not tracked** — it's tens
+of megabytes of other players' game records and this repo is public. The fetch
+scripts are tracked; [data/README.md](data/README.md) maps every file to the
+command that recreates it.
 
-Useful for identifying members not pulling their weight. Displays:
-- Member name and level
-- Xanax usage (hits they've received)
-- OC participation status
-- Days in faction
-
-### Good Thugs Report
-
-Identify Thugs who have completed at least one OC and are ready for promotion:
-
-```bash
-torn report goodthugs
-```
+---
 
 ## Development
 
-### Update the OpenAPI Spec
+### Build
 
-The spec is embedded at build time. To update to the latest Torn API definition:
+Always pull the spec first — the generated command tree comes from it:
 
-```bash
-# Fetch the latest spec from Torn
-curl -s https://www.torn.com/swagger/openapi.json > cmd/torn/torn_openapi_v2.json
-
-# Vet, test, then build
-go vet ./cmd/torn/
-go test ./cmd/torn/
-go build -o torn ./cmd/torn/
-```
-
-Current spec version: **5.5.3**
-
-### Run Tests
-
-```bash
-go test ./cmd/torn/
-```
-
-Tests use `httptest` to mock the Torn API. Coverage includes:
-- Happy path command execution
-- HTTP error codes (4xx, 5xx)
-- Malformed JSON responses
-- Torn-specific error handling (200 status with error body)
-- Missing/empty path parameters
-
-### Project Structure
-
-```
-torn-dynamic-cli/
-├── cmd/torn/
-│   ├── main.go                    # Entry point, spec loading
-│   ├── loader.go                  # OpenAPI struct unmarshalling
-│   ├── command_factory.go         # Auto-generates Cobra commands
-│   ├── executor.go                # HTTP execution, auth, pagination
-│   ├── env.go                     # .env file loading
-│   ├── report.go                  # Report command registry
-│   ├── report_hits.go             # Hits report implementation
-│   ├── report_freeloaders.go      # Freeloaders report implementation
-│   ├── report_goodthugs.go        # Good Thugs report implementation
-│   ├── cli_test.go                # Unit tests
-│   └── torn_openapi_v2.json       # Embedded OpenAPI spec
-├── go.mod / go.sum                # Go dependencies
-├── CLAUDE.md                      # Development notes
-└── README.md
-```
-
-## Dependencies
-
-- **[cobra](https://github.com/spf13/cobra)** - CLI framework
-- **[pflag](https://github.com/spf13/pflag)** - Flag parsing
-- **[gjson](https://github.com/tidwall/gjson)** - JSON path queries (pagination metadata)
-
-## Architecture Highlights
-
-### Command Generation
-
-1. **LoadSpec** parses the embedded OpenAPI JSON
-2. **BuildCommands** walks the spec and creates Cobra commands for each path
-3. Path parameters are resolved via `$ref` and registered as flags
-4. At runtime, **ExecuteRequest** assembles the URL, sets auth headers, and makes the HTTP call
-
-### Authentication
-
-API calls include an `Authorization: ApiKey <key>` header:
-
-```
-Authorization: ApiKey your_api_key_here
-```
-
-The key is read from the `--key` flag, `TORN_API_KEY` env var, or `.env` file (in that order).
-
-### Error Handling
-
-The CLI gracefully handles:
-- Broken pipes (when piping to grep, head, etc.)
-- HTTP errors (4xx, 5xx)
-- Malformed JSON responses
-- Torn API errors (200 status with error body)
-- Missing API keys
-
-## Troubleshooting
-
-**"API key required"**
-```bash
-export TORN_API_KEY=your_key_here
-```
-
-**"command not found: torn"**
-Make sure you built it first:
-```bash
-go build -o torn ./cmd/torn/
-```
-
-**Spec is outdated**
-Update and rebuild:
 ```bash
 curl -s https://www.torn.com/swagger/openapi.json > cmd/torn/torn_openapi_v2.json
+go vet ./...
+go test ./...
 go build -o torn ./cmd/torn/
 ```
 
-## License
+Go 1.24.4. Current spec version: **6.2.0**.
 
-See LICENSE file (if included in repository).
+### Layout
+
+```
+cmd/torn/                      # main package — CLI wiring and report commands
+  main.go                      #   entry point; embeds the spec
+  loader.go                    #   OpenAPI unmarshalling
+  command_factory.go           #   spec → Cobra command tree, $ref resolution
+  executor.go                  #   HTTP, auth, query assembly, pagination
+  report*.go                   #   one file per `torn report` subcommand
+  torn_openapi_v2.json         #   the embedded spec
+pkg/                           # hexagonal core, for the reports
+  domain/                      #   models and pure analysis services
+  ports/                       #   TornClient, FactionRepository, DataRepository
+  adapters/                    #   HTTP + faction implementations of those ports
+.agents/skills/                # agent skills (symlinked as .claude/skills)
+deploy/                        # k8s market-capture CronJob
+userscripts/                   # Tampermonkey scripts
+data/ · generated/             # working data and output — both gitignored
+```
+
+Report logic lives in `pkg/domain/services` behind the `pkg/ports` interfaces,
+so it is unit-testable against mocks with no network. `cmd/torn` holds the CLI
+wiring that binds real adapters to those ports. The generated-command path
+(`command_factory.go` → `executor.go`) does not go through `pkg/` at all.
+
+### Tests
+
+```bash
+go test ./...
+```
+
+`cmd/torn` tests drive real command execution against `httptest` servers,
+covering the happy path, HTTP errors, malformed JSON, Torn's 200-with-error-body
+shape, empty path params, and both pagination directions.
+`pkg/domain/services` tests use hand-written mocks.
+
+### Contributing
+
+Never commit to `main` — branch as `feature/…` or `fix/…`, then PR. Full
+workflow and per-skill notes are in [AGENTS.md](AGENTS.md).
 
 ## Resources
 
-- [Torn Official API Docs](https://www.torn.com/api.php)
-- [OpenAPI Spec Source](https://www.torn.com/swagger/openapi.json)
-- [Torn Game](https://www.torn.com/)
+- [Torn API docs](https://www.torn.com/api.php) · [OpenAPI spec](https://www.torn.com/swagger/openapi.json)
+- Built on [cobra](https://github.com/spf13/cobra), [pflag](https://github.com/spf13/pflag), and [gjson](https://github.com/tidwall/gjson)
