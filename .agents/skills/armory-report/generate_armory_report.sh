@@ -37,12 +37,20 @@ BAG_ABNEG_ID=737
 BAG_OPOS_ID=738
 BAG_ONEG_ID=739
 
+# Item ID mapping - grenades (faction "temporary" selection)
+HEG_ID=242
+TEARGAS_ID=256
+SMOKE_ID=226
+PEPPER_ID=392
+FLASH_ID=222
+
 ARMOR_TARGET=3
 EMPTY_BAG_TARGET=300
 SFAK_TARGET=500
 FAK_TARGET=200
 IPECAC_TARGET=100
 BLOOD_TARGET=300
+GRENADE_TARGET=1000
 
 echo "Fetching armor inventory..."
 ARMOR=$(./torn faction --selections armor 2>/dev/null)
@@ -50,8 +58,11 @@ ARMOR=$(./torn faction --selections armor 2>/dev/null)
 echo "Fetching medical inventory..."
 MEDICAL=$(./torn faction --selections medical 2>/dev/null)
 
+echo "Fetching grenade inventory..."
+TEMPORARY=$(./torn faction --selections temporary 2>/dev/null)
+
 echo "Fetching item prices..."
-PRICES=$(./torn torn items --ids "651,652,653,654,332,333,334,731,68,67,1363,732,733,734,735,736,737,738,739" 2>/dev/null)
+PRICES=$(./torn torn items --ids "651,652,653,654,332,333,334,731,68,67,1363,732,733,734,735,736,737,738,739,242,256,226,392,222" 2>/dev/null)
 
 # Extract armor quantities and loaned counts by name
 BOOTS_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Boots") | .quantity' 2>/dev/null || echo 0)
@@ -98,6 +109,32 @@ BAG_ABNEG=$(med_qty "Blood Bag : AB-")
 BAG_OPOS=$(med_qty "Blood Bag : O+")
 BAG_ONEG=$(med_qty "Blood Bag : O-")
 
+# Extract grenade quantities — "temporary" selection already provides
+# "available" (quantity minus loaned), unlike armor which needs manual subtraction
+grenade_available() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .available' 2>/dev/null); echo "${result:-0}"; }
+grenade_qty() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .quantity' 2>/dev/null); echo "${result:-0}"; }
+grenade_loaned() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .loaned' 2>/dev/null); echo "${result:-0}"; }
+
+HEG=$(grenade_available "HEG")
+HEG_QTY=$(grenade_qty "HEG")
+HEG_LOANED=$(grenade_loaned "HEG")
+
+TEARGAS=$(grenade_available "Tear Gas")
+TEARGAS_QTY=$(grenade_qty "Tear Gas")
+TEARGAS_LOANED=$(grenade_loaned "Tear Gas")
+
+SMOKE=$(grenade_available "Smoke Grenade")
+SMOKE_QTY=$(grenade_qty "Smoke Grenade")
+SMOKE_LOANED=$(grenade_loaned "Smoke Grenade")
+
+PEPPER=$(grenade_available "Pepper Spray")
+PEPPER_QTY=$(grenade_qty "Pepper Spray")
+PEPPER_LOANED=$(grenade_loaned "Pepper Spray")
+
+FLASH=$(grenade_available "Flash Grenade")
+FLASH_QTY=$(grenade_qty "Flash Grenade")
+FLASH_LOANED=$(grenade_loaned "Flash Grenade")
+
 # Extract prices (using market_price)
 price_of() { echo "$PRICES" | jq ".items[] | select(.id == $1) | .value.market_price" 2>/dev/null || echo 0; }
 
@@ -121,6 +158,12 @@ BAG_ABPOS_PRICE=$(price_of $BAG_ABPOS_ID)
 BAG_ABNEG_PRICE=$(price_of $BAG_ABNEG_ID)
 BAG_OPOS_PRICE=$(price_of $BAG_OPOS_ID)
 BAG_ONEG_PRICE=$(price_of $BAG_ONEG_ID)
+
+HEG_PRICE=$(price_of $HEG_ID)
+TEARGAS_PRICE=$(price_of $TEARGAS_ID)
+SMOKE_PRICE=$(price_of $SMOKE_ID)
+PEPPER_PRICE=$(price_of $PEPPER_ID)
+FLASH_PRICE=$(price_of $FLASH_ID)
 
 # Calculate needs
 need() { echo $(($2 - $1 > 0 ? $2 - $1 : 0)); }
@@ -146,6 +189,12 @@ BAG_ABNEG_NEED=$(need $BAG_ABNEG $BLOOD_TARGET)
 BAG_OPOS_NEED=$(need $BAG_OPOS $BLOOD_TARGET)
 BAG_ONEG_NEED=$(need $BAG_ONEG $BLOOD_TARGET)
 
+HEG_NEED=$(need $HEG $GRENADE_TARGET)
+TEARGAS_NEED=$(need $TEARGAS $GRENADE_TARGET)
+SMOKE_NEED=$(need $SMOKE $GRENADE_TARGET)
+PEPPER_NEED=$(need $PEPPER $GRENADE_TARGET)
+FLASH_NEED=$(need $FLASH $GRENADE_TARGET)
+
 # Calculate costs
 BOOTS_COST=$((BOOTS_NEED * BOOTS_PRICE))
 GLOVES_COST=$((GLOVES_NEED * GLOVES_PRICE))
@@ -168,14 +217,23 @@ BAG_ABNEG_COST=$((BAG_ABNEG_NEED * BAG_ABNEG_PRICE))
 BAG_OPOS_COST=$((BAG_OPOS_NEED * BAG_OPOS_PRICE))
 BAG_ONEG_COST=$((BAG_ONEG_NEED * BAG_ONEG_PRICE))
 
+HEG_COST=$((HEG_NEED * HEG_PRICE))
+TEARGAS_COST=$((TEARGAS_NEED * TEARGAS_PRICE))
+SMOKE_COST=$((SMOKE_NEED * SMOKE_PRICE))
+PEPPER_COST=$((PEPPER_NEED * PEPPER_PRICE))
+FLASH_COST=$((FLASH_NEED * FLASH_PRICE))
+
 ARMOR_UNITS=$((BOOTS_NEED + GLOVES_NEED + HELMET_NEED + PANTS_NEED + VEST_NEED + LIQUID_NEED + FLEXIBLE_NEED))
 ARMOR_COST=$((BOOTS_COST + GLOVES_COST + HELMET_COST + PANTS_COST + VEST_COST + LIQUID_COST + FLEXIBLE_COST))
 
 MEDICAL_UNITS=$((EMPTY_BAG_NEED + SFAK_NEED + FAK_NEED + IPECAC_NEED + BAG_APOS_NEED + BAG_ANEG_NEED + BAG_BPOS_NEED + BAG_BNEG_NEED + BAG_ABPOS_NEED + BAG_ABNEG_NEED + BAG_OPOS_NEED + BAG_ONEG_NEED))
 MEDICAL_COST=$((EMPTY_BAG_COST + SFAK_COST + FAK_COST + IPECAC_COST + BAG_APOS_COST + BAG_ANEG_COST + BAG_BPOS_COST + BAG_BNEG_COST + BAG_ABPOS_COST + BAG_ABNEG_COST + BAG_OPOS_COST + BAG_ONEG_COST))
 
-TOTAL_UNITS=$((ARMOR_UNITS + MEDICAL_UNITS))
-TOTAL_COST=$((ARMOR_COST + MEDICAL_COST))
+GRENADE_UNITS=$((HEG_NEED + TEARGAS_NEED + SMOKE_NEED + PEPPER_NEED + FLASH_NEED))
+GRENADE_COST=$((HEG_COST + TEARGAS_COST + SMOKE_COST + PEPPER_COST + FLASH_COST))
+
+TOTAL_UNITS=$((ARMOR_UNITS + MEDICAL_UNITS + GRENADE_UNITS))
+TOTAL_COST=$((ARMOR_COST + MEDICAL_COST + GRENADE_COST))
 
 # Format numbers with commas
 format_number() {
@@ -222,6 +280,16 @@ Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 | [Blood Bag : O+](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=738&sortField=price&sortOrder=ASC) | $BAG_OPOS | $BAG_OPOS_NEED | \$$(format_number $BAG_OPOS_PRICE) | \$$(format_number $BAG_OPOS_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=738&sortField=price&sortOrder=ASC) |
 | [Blood Bag : O-](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=739&sortField=price&sortOrder=ASC) | $BAG_ONEG | $BAG_ONEG_NEED | \$$(format_number $BAG_ONEG_PRICE) | \$$(format_number $BAG_ONEG_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=739&sortField=price&sortOrder=ASC) |
 
+### Grenades
+
+| Item | Available | Loaned | Need | Unit Cost | Total Cost | Market Link |
+|------|-----------|--------|------|-----------|------------|-------------|
+| [HEG](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=242&sortField=price&sortOrder=ASC) | $HEG | $HEG_LOANED | $HEG_NEED | \$$(format_number $HEG_PRICE) | \$$(format_number $HEG_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=242&sortField=price&sortOrder=ASC) |
+| [Tear Gas](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=256&sortField=price&sortOrder=ASC) | $TEARGAS | $TEARGAS_LOANED | $TEARGAS_NEED | \$$(format_number $TEARGAS_PRICE) | \$$(format_number $TEARGAS_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=256&sortField=price&sortOrder=ASC) |
+| [Smoke Grenade](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=226&sortField=price&sortOrder=ASC) | $SMOKE | $SMOKE_LOANED | $SMOKE_NEED | \$$(format_number $SMOKE_PRICE) | \$$(format_number $SMOKE_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=226&sortField=price&sortOrder=ASC) |
+| [Pepper Spray](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=392&sortField=price&sortOrder=ASC) | $PEPPER | $PEPPER_LOANED | $PEPPER_NEED | \$$(format_number $PEPPER_PRICE) | \$$(format_number $PEPPER_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=392&sortField=price&sortOrder=ASC) |
+| [Flash Grenade](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=222&sortField=price&sortOrder=ASC) | $FLASH | $FLASH_LOANED | $FLASH_NEED | \$$(format_number $FLASH_PRICE) | \$$(format_number $FLASH_COST) | [↗](https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID=222&sortField=price&sortOrder=ASC) |
+
 **Summary:**
 - Total units to purchase: $(format_number $TOTAL_UNITS)
 - **Total cost to restock: \$$(format_number $TOTAL_COST)**
@@ -231,6 +299,7 @@ Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 ---
 _Armor target: $ARMOR_TARGET units available per item_
 _Medical targets: Empty Blood Bag x$EMPTY_BAG_TARGET, Small FAK x$SFAK_TARGET, FAK x$FAK_TARGET, Ipecac x$IPECAC_TARGET, Blood bags x$BLOOD_TARGET each_
+_Grenade target: $GRENADE_TARGET units available each (HEG, Tear Gas, Smoke Grenade, Pepper Spray, Flash Grenade)_
 _Updated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")_
 REPORT
 

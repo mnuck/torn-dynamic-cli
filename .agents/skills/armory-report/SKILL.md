@@ -1,7 +1,7 @@
 ---
 id: armory-report
 name: armory-report
-description: Generate the faction armory restock report — checks combat armor, advanced armor, and medical supply inventory (accounting for loaned items) against target thresholds, prices each shortfall at current market value, and writes a Markdown report (`generated/armory-report.md`) with per-item shortfalls, item-market links, and the total vault pull required to restock. Use this skill when the user asks to "refresh the armory report", "check the armory", "what do we need to buy for the armory", "generate the restock report", "how much to restock the faction", or any request to figure out what the faction armory is missing and what it will cost.
+description: Generate the faction armory restock report — checks combat armor, advanced armor, medical supplies, and grenades (accounting for loaned items) against target thresholds, prices each shortfall at current market value, and writes a Markdown report (`generated/armory-report.md`) with per-item shortfalls, item-market links, and the total vault pull required to restock. Use this skill when the user asks to "refresh the armory report", "check the armory", "what do we need to buy for the armory", "generate the restock report", "how much to restock the faction", or any request to figure out what the faction armory is missing and what it will cost.
 source: learned
 triggers:
   - armory report
@@ -24,6 +24,7 @@ Runs `.agents/skills/armory-report/generate_armory_report.sh`, which:
 1. Calls the `torn` CLI to pull current faction armory data:
    - `torn faction --selections armor` — combat / advanced armor (with `loaned` counts)
    - `torn faction --selections medical` — medical supplies
+   - `torn faction --selections temporary` — grenades (already exposes an `available` field, i.e. quantity minus loaned)
    - `torn torn items --ids ...` — current market prices for every tracked item
 2. Subtracts loaned units from on-hand quantity (loaned items are not available to draw on).
 3. Compares each item's *available* quantity against its target threshold (see below) and computes the shortfall.
@@ -40,6 +41,7 @@ Runs `.agents/skills/armory-report/generate_armory_report.sh`, which:
 | Medical | First Aid Kit | 200 |
 | Medical | Ipecac Syrup | 100 |
 | Medical | Each blood bag (A+/-, B+/-, AB+/-, O+/-) | 300 each |
+| Grenades | HEG, Tear Gas, Smoke Grenade, Pepper Spray, Flash Grenade | 1000 each |
 
 ## How to run
 
@@ -55,13 +57,13 @@ After completion the file `generated/armory-report.md` will be written/overwritt
 ## Prerequisites
 
 - `./torn` binary built at the repo root (run the `build-cli` skill if it's missing).
-- `TORN_API_KEY` set (either exported or in `.env`) with **faction** access — required for the `faction --selections armor|medical` endpoints.
+- `TORN_API_KEY` set (either exported or in `.env`) with **faction** access — required for the `faction --selections armor|medical|temporary` endpoints.
 - `jq` installed (used to parse each Torn API JSON response).
 
 ## Gotchas
 
-- **Loaned items count against availability.** The script subtracts `loaned` from `quantity` before comparing to the target, so a fully-loaned-out stock looks like 0 available.
+- **Loaned items count against availability.** The script subtracts `loaned` from `quantity` before comparing to the target (armor), so a fully-loaned-out stock looks like 0 available. The `temporary` selection (grenades) already returns a pre-computed `available` field, so no manual subtraction is needed there.
 - **Medical items have no `loaned` field**, so only `quantity` is used there.
 - **Market prices are `market_price`** from `torn torn items` (not lowest listed). Real bazaar/listing prices may be lower — the totals are an upper-bound estimate for budgeting.
-- **Item ID list is hardcoded.** If Torn adds a new armor or medical item you care about, add its ID to the `--ids` list and add corresponding `*_QTY` / `*_PRICE` / `*_NEED` / `*_COST` blocks plus a row in the generated Markdown template.
+- **Item ID list is hardcoded.** If Torn adds a new armor, medical, or grenade item you care about, add its ID to the `--ids` list and add corresponding `*_QTY` / `*_PRICE` / `*_NEED` / `*_COST` blocks plus a row in the generated Markdown template. Grenade item IDs: HEG=242, Tear Gas=256, Smoke Grenade=226, Pepper Spray=392, Flash Grenade=222.
 - **Output overwrites in `generated/`.** Run from the project root (not from inside the skill directory) so `generated/armory-report.md` lands alongside other generated reports. `generated/` is gitignored — it holds regenerable output, not source.
