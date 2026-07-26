@@ -51,6 +51,12 @@ func fetchAllPages(apiKey string, startURL string) ([][]byte, error) {
 
 	client := &http.Client{Timeout: 30 * time.Second}
 
+	// Direction is locked in from the first page and never changes mid-walk
+	// -- see the matching comment in executor.go's pagination loop for why
+	// falling back to `prev` after `next` naturally ends is unsafe.
+	paginateBackward := false
+	firstPage := true
+
 	for nextURL != "" {
 		req, err := http.NewRequest("GET", nextURL, nil)
 		if err != nil {
@@ -83,20 +89,28 @@ func fetchAllPages(apiKey string, startURL string) ([][]byte, error) {
 
 		pages = append(pages, body)
 
-		// Follow next page link; fall back to prev for endpoints that paginate backwards.
+		// Follow next page link; endpoints that only ever expose `prev`
+		// (newest-first, no `next`) paginate backwards from page one instead.
 		nextURL = ""
 		var meta apiPageMeta
 		if err := json.Unmarshal(body, &meta); err == nil && meta.Metadata != nil {
-			if meta.Metadata.Links != nil {
-				nextURL = meta.Metadata.Links.Next
+			if firstPage && meta.Metadata.Links != nil {
+				paginateBackward = meta.Metadata.Links.Next == "" && meta.Metadata.Links.Prev != ""
 			}
-			if nextURL == "" {
-				nextURL = meta.Metadata.Next
-			}
-			if nextURL == "" && meta.Metadata.Links != nil {
-				nextURL = meta.Metadata.Links.Prev
+			if paginateBackward {
+				if meta.Metadata.Links != nil {
+					nextURL = meta.Metadata.Links.Prev
+				}
+			} else {
+				if meta.Metadata.Links != nil {
+					nextURL = meta.Metadata.Links.Next
+				}
+				if nextURL == "" {
+					nextURL = meta.Metadata.Next
+				}
 			}
 		}
+		firstPage = false
 
 		// No sleep needed: Torn allows 100 req/min and natural HTTP latency
 		// keeps us well within that limit.
