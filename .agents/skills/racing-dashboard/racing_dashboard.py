@@ -88,12 +88,20 @@ def _ensure_parent_dir(path):
 
 def load_dotenv():
     """Load key=value pairs from a .env file into os.environ.
-    Tries .env then .env.local in the script's directory.
+    Tries .env then .env.local in the current working directory (the repo
+    root, since the wrapper cd's there) and then the script's directory.
+    The script used to live in the repo root; now it's under
+    .agents/skills/, so cwd is where the .env actually is.
     Handles named pipes (e.g. 1Password), comments, blank lines,
     and optional quoting."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    for name in (".env", ".env.local"):
-        path = os.path.join(script_dir, name)
+    search_dirs = [os.getcwd(), script_dir]
+    candidates = [
+        os.path.join(d, name)
+        for d in dict.fromkeys(search_dirs)  # dedupe, preserve order
+        for name in (".env", ".env.local")
+    ]
+    for path in candidates:
         if not os.path.exists(path):
             continue
         try:

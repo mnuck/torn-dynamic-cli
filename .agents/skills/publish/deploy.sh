@@ -29,6 +29,10 @@ MANIFEST=(
     track_odds_for_alias.html
     streakiness.html
     fastband_19934929.html
+    war_incoming_45796.html
+    war_nettrade_45796.html
+    koa_incoming_45796.html
+    kassie_war_report.html
 )
 
 OC_DASHBOARD=".agents/skills/oc-dashboard/dashboard.html"
@@ -58,7 +62,29 @@ for f in "${MANIFEST[@]}"; do
     fi
 done
 
-echo "Deploying $STAGING to Cloudflare Pages project jokerz-oc-stats..."
-wrangler pages deploy "$STAGING" --project-name jokerz-oc-stats
+# Pages treats only its production branch as production; wrangler otherwise infers
+# the branch from git, so deploying from a feature branch silently publishes to a
+# preview URL instead of the live hub. Pin it.
+PAGES_BRANCH="${PAGES_BRANCH:-main}"
 
-echo "Done. Live at https://jokerz-oc-stats.pages.dev"
+echo "Deploying $STAGING to Cloudflare Pages project jokerz-oc-stats (branch: $PAGES_BRANCH)..."
+wrangler pages deploy "$STAGING" \
+    --project-name jokerz-oc-stats \
+    --branch "$PAGES_BRANCH" \
+    --commit-dirty=true
+
+# Verify the hub actually serves a manifest file rather than falling back to
+# index.html — a preview-only deploy returns 200 for everything and looks fine.
+# macOS ships bash 3.2, which has no negative array subscripts.
+CANARY="${MANIFEST[$(( ${#MANIFEST[@]} - 1 ))]}"
+echo "Verifying https://jokerz-oc-stats.pages.dev/$CANARY ..."
+sleep 3
+if curl -sfL "https://jokerz-oc-stats.pages.dev/$CANARY" \
+     | grep -qF "$(head -c 200 "generated/$CANARY" | tail -c 60)"; then
+    echo "Done. Live at https://jokerz-oc-stats.pages.dev"
+else
+    echo "WARN: $CANARY did not verify on the live hub — it may have deployed to a" >&2
+    echo "      preview URL, or the edge cache has not caught up. Re-check before" >&2
+    echo "      telling anyone it is live." >&2
+    exit 1
+fi
