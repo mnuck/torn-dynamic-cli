@@ -202,6 +202,71 @@ func TestExecuteRequest_AllFlag_MultiPage(t *testing.T) {
 	}
 }
 
+func TestExecuteRequest_AllFlag_StopsWhenNextGoesEmpty(t *testing.T) {
+	// A forward walk must stop when `next` empties out, even though the same
+	// page still carries a `prev` link back to where we came from. Falling
+	// back to `prev` here would walk the range a second time in reverse.
+	callCount := 0
+	var ts *httptest.Server
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount > 10 {
+			t.Errorf("pagination did not terminate; made %d calls", callCount)
+			w.Write([]byte(`{"attacks":[],"_metadata":{}}`))
+			return
+		}
+		if callCount == 1 {
+			fmt.Fprintf(w, `{"attacks":[{"id":1}],"_metadata":{"links":{"next":"%s/p2","prev":""}}}`, ts.URL)
+		} else {
+			// Last page of the requested window: no `next`, but Torn still
+			// hands back a `prev` pointing at page one.
+			fmt.Fprintf(w, `{"attacks":[{"id":2}],"_metadata":{"links":{"next":"","prev":"%s/p1"}}}`, ts.URL)
+		}
+	}))
+	defer ts.Close()
+
+	cmd, spec, variants := setupTestCmd(ts.URL, "/faction/attacks", nil)
+	cmd.Flags().Set("key", "testkey")
+	cmd.Flags().Set("all", "true")
+
+	if err := ExecuteRequest(cmd, spec, variants); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("expected the walk to stop after 2 pages, made %d calls", callCount)
+	}
+}
+
+func TestExecuteRequest_AllFlag_BackwardOnlyEndpoint(t *testing.T) {
+	// Endpoints that only ever expose `prev` (newest-first, no `next` at all)
+	// must still paginate: `prev` is the forward direction from page one.
+	callCount := 0
+	var ts *httptest.Server
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		switch callCount {
+		case 1:
+			fmt.Fprintf(w, `{"events":[{"id":3}],"_metadata":{"links":{"prev":"%s/p2"}}}`, ts.URL)
+		case 2:
+			fmt.Fprintf(w, `{"events":[{"id":2}],"_metadata":{"links":{"prev":"%s/p3"}}}`, ts.URL)
+		default:
+			w.Write([]byte(`{"events":[{"id":1}],"_metadata":{"links":{}}}`))
+		}
+	}))
+	defer ts.Close()
+
+	cmd, spec, variants := setupTestCmd(ts.URL, "/user/events", nil)
+	cmd.Flags().Set("key", "testkey")
+	cmd.Flags().Set("all", "true")
+
+	if err := ExecuteRequest(cmd, spec, variants); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if callCount != 3 {
+		t.Errorf("expected 3 HTTP calls walking `prev`, made %d", callCount)
+	}
+}
+
 // --- Variant selection tests ---
 
 func TestSelectVariant_PrefersParamVariantWhenIDProvided(t *testing.T) {

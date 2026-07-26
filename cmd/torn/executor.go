@@ -141,6 +141,18 @@ func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, variants []pathVarian
 	var mergedArrayKey string
 	var mergedItems []json.RawMessage
 	var lastPage map[string]json.RawMessage
+	// Direction is locked in from the first page and never changes mid-walk.
+	// Most endpoints paginate forward via `next`, which legitimately goes
+	// empty at the true end of the requested range -- that must stop the
+	// walk, not fall back to `prev`. Some endpoints only ever expose `prev`
+	// (newest-first, no `next` at all), where `prev` is the correct forward
+	// direction from page one. Deciding this once from page one and sticking
+	// to it avoids re-walking already-seen pages once `next` naturally ends,
+	// which (since Torn's generated links don't reliably preserve the
+	// original from/to/sort params) can silently drift the walk past the
+	// requested window into unrelated history.
+	paginateBackward := false
+	firstPage := true
 
 	for {
 		req, err := http.NewRequest("GET", nextURL, nil)
@@ -220,16 +232,23 @@ func ExecuteRequest(cmd *cobra.Command, spec *OpenAPISpec, variants []pathVarian
 		var meta apiPageMeta
 		var nextLink string
 		if err := json.Unmarshal(body, &meta); err == nil && meta.Metadata != nil {
-			if meta.Metadata.Links != nil {
-				nextLink = meta.Metadata.Links.Next
+			if firstPage && meta.Metadata.Links != nil {
+				paginateBackward = meta.Metadata.Links.Next == "" && meta.Metadata.Links.Prev != ""
 			}
-			if nextLink == "" {
-				nextLink = meta.Metadata.Next
-			}
-			if nextLink == "" && meta.Metadata.Links != nil {
-				nextLink = meta.Metadata.Links.Prev
+			if paginateBackward {
+				if meta.Metadata.Links != nil {
+					nextLink = meta.Metadata.Links.Prev
+				}
+			} else {
+				if meta.Metadata.Links != nil {
+					nextLink = meta.Metadata.Links.Next
+				}
+				if nextLink == "" {
+					nextLink = meta.Metadata.Next
+				}
 			}
 		}
+		firstPage = false
 
 		if nextLink == "" {
 			// No more pages — build and print merged response.
