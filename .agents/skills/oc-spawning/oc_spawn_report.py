@@ -37,6 +37,7 @@ BUMP_THRESHOLD = 82     # plateau/trend at or above this -> bump up a level
 QUALIFY_THRESHOLD = 70  # below this the member doesn't qualify at that level
 COMPLETING_WINDOW = 24 * 3600
 MAX_DIFFICULTY = 10
+PAGE_LIMIT = 100        # /faction/crimes caps limit at 100 (default 20)
 
 
 # ---------------------------------------------------------------- fetching
@@ -80,18 +81,27 @@ def load_executed_crimes():
     if last_executed == 0:
         print("No executed-crimes cache — full paginated fetch (may take a minute)...",
               file=sys.stderr)
-        raw, page = [], 1
+        # One ./torn call per page, walking --offset. Deliberately NOT `--all`:
+        # that walks every page inside a single process with no rate-limit
+        # handling, and because Torn signals throttling as HTTP 200 with
+        # {"error": {"code": 5}}, the executor's StatusCode >= 400 check never
+        # fires -- the walk just ends early and returns a silently truncated
+        # result. Paging here keeps each request under run_torn()'s code-5
+        # retry/backoff, so a throttle costs a pause instead of missing crimes.
+        raw, offset = [], 0
         while True:
             data = run_torn(["faction", "crimes", "--cat", "executed",
-                             "--filters", "executed_at", "--page", str(page)])
+                             "--filters", "executed_at",
+                             "--limit", str(PAGE_LIMIT), "--offset", str(offset)])
             batch = crimes_of(data)
             if not batch:
                 break
             raw.extend(batch)
-            if not data.get("_metadata", {}).get("links", {}).get("next"):
+            offset += len(batch)
+            print(f"  {len(raw)} crimes fetched...", file=sys.stderr)
+            # A short page is the last page; saves one empty round trip.
+            if len(batch) < PAGE_LIMIT:
                 break
-            page += 1
-            print(f"  page {page - 1} done ({len(raw)} crimes)...", file=sys.stderr)
         new = raw
     else:
         # --from only works when paired with --filters executed_at.
