@@ -3,7 +3,7 @@
     "info": {
         "title": "Torn API",
         "description": "\n * The development of Torn's API v2 is still ongoing.\n * If selections remain unaltered, they will default to the API v1 version.\n * Unlike API v1, API v2 accepts both selections and IDs as path and query parameters.\n * If any discrepancies or errors are found, please submit a [bug report](https://www.torn.com/forums.php#/p=forums&f=19&b=0&a=0) on the Torn Forums.\n * In case you're using bots to check for changes on openapi.json file, make sure to specificy a custom user-agent header - CloudFlare sometimes prevents requests from default user-agents.",
-        "version": "6.2.0"
+        "version": "6.7.0"
     },
     "servers": [
         {
@@ -492,7 +492,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/user/competition": {
@@ -2258,13 +2258,52 @@
                 "x-stability": "Stable"
             }
         },
+        "/user/networth": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get your networth",
+                "description": "Requires limited access key. <br>",
+                "operationId": "getMyNetworth",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyLimited"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserNetworthResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
         "/user/newmessages": {
             "get": {
                 "tags": [
                     "User"
                 ],
                 "summary": "Get your unseen messages",
-                "description": "Requires limited access key. <br>",
+                "description": "Requires limited access key. <br>This selection is cached for 1 hour.",
                 "operationId": "getMyNewMessages",
                 "parameters": [
                     {
@@ -2401,6 +2440,45 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/UserOrganizedCrimesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Stable"
+            }
+        },
+        "/user/perks": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get your current perks",
+                "description": "Requires minimal access key. <br>",
+                "operationId": "getMyPerks",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserPerksResponse"
                                 }
                             }
                         }
@@ -3203,6 +3281,46 @@
                 "x-stability": "Stable"
             }
         },
+        "/user/snapshot": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get daily active players snapshot CSV",
+                "description": "Requires public access key.<br>Returns a CSV daily snapshot of active players.<br>This selection is standalone and cannot be used together with other selections.<br>\nCSV columns: id, name, gender, signed_up, level, rank, donator, faction, company, job, spouse, display_case, bazaar, fed, fed_reason, time_played, awards",
+                "operationId": "getUsersSnapshot",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestampSpecificPointInTime"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful CSV response",
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string",
+                                    "example": "id,name,gender,signed_up,level,rank,donator,faction,company,job,spouse,display_case,bazaar,fed,fed_reason,time_played,awards\\n33,1,Chedburn,Male,1100521336,15,Outstanding,1,40992,79286,,2103253,1,1,0,,48076299,1388"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
         "/user/stocks": {
             "get": {
                 "tags": [
@@ -3299,7 +3417,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/user/{tradeId}/trade": {
@@ -3347,7 +3465,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/user/travel": {
@@ -3856,6 +3974,9 @@
                                             "$ref": "#/components/schemas/UserNotificationsResponse"
                                         },
                                         {
+                                            "$ref": "#/components/schemas/UserPerksResponse"
+                                        },
+                                        {
                                             "$ref": "#/components/schemas/UserRefillsResponse"
                                         },
                                         {
@@ -3869,6 +3990,9 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/UserCasinoResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/UserNetworthResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/UserMoneyResponse"
@@ -5574,7 +5698,7 @@
                 "operationId": "getFactionsSnapshot",
                 "parameters": [
                     {
-                        "$ref": "#/components/parameters/ApiTimestamp"
+                        "$ref": "#/components/parameters/ApiTimestampSpecificPointInTime"
                     },
                     {
                         "$ref": "#/components/parameters/ApiComment"
@@ -6512,7 +6636,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/employees": {
@@ -6554,7 +6678,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/{id}/employees": {
@@ -6605,7 +6729,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/news": {
@@ -6668,7 +6792,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/{typeId}/companies": {
@@ -6725,7 +6849,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/profile": {
@@ -6767,7 +6891,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/{id}/profile": {
@@ -6818,7 +6942,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/search": {
@@ -6869,7 +6993,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/snapshot": {
@@ -6882,7 +7006,7 @@
                 "operationId": "getCompaniesSnapshot",
                 "parameters": [
                     {
-                        "$ref": "#/components/parameters/ApiTimestamp"
+                        "$ref": "#/components/parameters/ApiTimestampSpecificPointInTime"
                     },
                     {
                         "$ref": "#/components/parameters/ApiComment"
@@ -6909,7 +7033,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/stock": {
@@ -6948,7 +7072,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/company/lookup": {
@@ -8135,6 +8259,45 @@
                 "x-stability": "Stable"
             }
         },
+        "/market/pointsmarket": {
+            "get": {
+                "tags": [
+                    "Market"
+                ],
+                "summary": "Get points market listings",
+                "description": "Requires public access key. <br>",
+                "operationId": "getMarketPoints",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PointsMarketResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
         "/market/{propertyTypeId}/rentals": {
             "get": {
                 "tags": [
@@ -8397,6 +8560,9 @@
                                         },
                                         {
                                             "$ref": "#/components/schemas/AuctionHouseListingResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PointsMarketResponse"
                                         },
                                         {
                                             "$ref": "#/components/schemas/MarketPropertiesResponse"
@@ -9243,6 +9409,93 @@
                     }
                 ],
                 "x-stability": "Stable"
+            }
+        },
+        "/torn/companies": {
+            "get": {
+                "tags": [
+                    "Torn"
+                ],
+                "summary": "Get all companies details",
+                "description": "Requires public access key. <br>",
+                "operationId": "getTornCompanies",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TornCompaniesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
+            }
+        },
+        "/torn/{typeId}/companies": {
+            "get": {
+                "tags": [
+                    "Torn"
+                ],
+                "summary": "Get specific company details",
+                "description": "Requires public access key. <br>",
+                "operationId": "getTornCompaniesSpecific",
+                "parameters": [
+                    {
+                        "name": "typeId",
+                        "in": "path",
+                        "description": "Company type id",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/CompanyTypeId"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiTimestamp"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiComment"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiKeyPublic"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TornCompaniesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "api_key": []
+                    }
+                ],
+                "x-stability": "Unstable"
             }
         },
         "/torn/crimes": {
@@ -10190,7 +10443,7 @@
                         "api_key": []
                     }
                 ],
-                "x-stability": "Unstable"
+                "x-stability": "Stable"
             }
         },
         "/torn/organizedcrimes": {
@@ -15842,6 +16095,14 @@
                 "type": "integer",
                 "format": "int32"
             },
+            "CompanySpecialId": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "CompanyStockId": {
+                "type": "integer",
+                "format": "int32"
+            },
             "TradeId": {
                 "type": "integer",
                 "format": "int64"
@@ -16485,6 +16746,8 @@
                     "is_stealthed",
                     "is_raid",
                     "is_ranked_war",
+                    "is_territory_war",
+                    "territory_war_id",
                     "finishing_hit_effects",
                     "modifiers"
                 ],
@@ -16545,6 +16808,19 @@
                     },
                     "is_ranked_war": {
                         "type": "boolean"
+                    },
+                    "is_territory_war": {
+                        "type": "boolean"
+                    },
+                    "territory_war_id": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/TerritoryWarId"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     },
                     "finishing_hit_effects": {
                         "type": "array",
@@ -18168,6 +18444,226 @@
                         "$ref": "#/components/schemas/ErrorFileDoesNotExist"
                     }
                 ]
+            },
+            "UserPerksResponse": {
+                "required": [
+                    "perks"
+                ],
+                "properties": {
+                    "perks": {
+                        "required": [
+                            "faction",
+                            "job",
+                            "property",
+                            "education",
+                            "enhancer",
+                            "book",
+                            "stock",
+                            "merit"
+                        ],
+                        "properties": {
+                            "faction": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "job": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "property": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "education": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "enhancer": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "book": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "stock": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "merit": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "UserNetworthResponse": {
+                "required": [
+                    "networth"
+                ],
+                "properties": {
+                    "networth": {
+                        "required": [
+                            "money",
+                            "items",
+                            "assets",
+                            "points",
+                            "total",
+                            "timestamp"
+                        ],
+                        "properties": {
+                            "money": {
+                                "required": [
+                                    "pending",
+                                    "wallet",
+                                    "vault",
+                                    "bookie",
+                                    "city_bank",
+                                    "cayman_bank",
+                                    "piggy_bank",
+                                    "loans",
+                                    "unpaid_fees"
+                                ],
+                                "properties": {
+                                    "pending": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "wallet": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "vault": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "bookie": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "city_bank": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "cayman_bank": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "piggy_bank": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "loans": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "unpaid_fees": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "items": {
+                                "required": [
+                                    "inventory",
+                                    "display_case",
+                                    "bazaar",
+                                    "trades",
+                                    "item_market",
+                                    "auction_house",
+                                    "enlisted_cars"
+                                ],
+                                "properties": {
+                                    "inventory": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "display_case": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "bazaar": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "trades": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "item_market": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "auction_house": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "enlisted_cars": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "assets": {
+                                "required": [
+                                    "property",
+                                    "stock_market",
+                                    "company"
+                                ],
+                                "properties": {
+                                    "property": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "stock_market": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "company": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "points": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "total": {
+                                "type": "integer",
+                                "format": "int64"
+                            },
+                            "timestamp": {
+                                "type": "integer",
+                                "format": "int32"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
             },
             "UserItemMod": {
                 "required": [
@@ -22581,6 +23077,7 @@
                             "messages",
                             "missions",
                             "money",
+                            "networth",
                             "newevents",
                             "newmessages",
                             "notifications",
@@ -22596,6 +23093,7 @@
                             "revives",
                             "revivesfull",
                             "skills",
+                            "snapshot",
                             "stocks",
                             "trades",
                             "trade",
@@ -22608,7 +23106,6 @@
                             "display",
                             "education",
                             "gym",
-                            "networth",
                             "perks"
                         ]
                     },
@@ -29644,8 +30141,7 @@
                         "type": "string"
                     },
                     "id": {
-                        "type": "integer",
-                        "format": "int32"
+                        "$ref": "#/components/schemas/CompanyStockId"
                     },
                     "cost": {
                         "type": "integer",
@@ -30510,6 +31006,44 @@
                     }
                 ]
             },
+            "PointsMarketResponse": {
+                "required": [
+                    "pointsmarket"
+                ],
+                "properties": {
+                    "pointsmarket": {
+                        "type": "array",
+                        "items": {
+                            "required": [
+                                "id",
+                                "quantity",
+                                "cost",
+                                "total_cost"
+                            ],
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "format": "int32"
+                                },
+                                "quantity": {
+                                    "type": "integer",
+                                    "format": "int32"
+                                },
+                                "cost": {
+                                    "type": "integer",
+                                    "format": "int32"
+                                },
+                                "total_cost": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "AuctionHouseStackableItem": {
                 "required": [
                     "id",
@@ -31286,18 +31820,17 @@
             "MarketSelectionName": {
                 "oneOf": [
                     {
-                        "description": "The following selections will fallback to API v1 and may change at any time: 'pointsmarket'.",
                         "type": "string",
                         "enum": [
+                            "auctionhouse",
+                            "auctionhouselisting",
                             "bazaar",
                             "itemmarket",
+                            "pointsmarket",
                             "properties",
                             "rentals",
                             "lookup",
-                            "timestamp",
-                            "pointsmarket",
-                            "auctionhouse",
-                            "auctionhouselisting"
+                            "timestamp"
                         ]
                     },
                     {
@@ -32000,6 +32533,197 @@
                         "items": {
                             "$ref": "#/components/schemas/PropertySelectionName"
                         }
+                    }
+                },
+                "type": "object"
+            },
+            "TornCompaniesResponse": {
+                "required": [
+                    "companies"
+                ],
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TornCompany"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "TornCompany": {
+                "required": [
+                    "id",
+                    "name",
+                    "cost",
+                    "employees",
+                    "positions",
+                    "specials",
+                    "stock"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyTypeId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "cost": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "employees": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "positions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TornCompanyPosition"
+                        }
+                    },
+                    "specials": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TornCompanySpecial"
+                        }
+                    },
+                    "stock": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TornCompanyStock"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "TornCompanyPosition": {
+                "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "ability",
+                    "working_stats"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyPositionId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "ability": {
+                        "type": "string"
+                    },
+                    "working_stats": {
+                        "required": [
+                            "required",
+                            "daily_gains"
+                        ],
+                        "properties": {
+                            "required": {
+                                "required": [
+                                    "intelligence",
+                                    "manual_labor",
+                                    "endurance"
+                                ],
+                                "properties": {
+                                    "intelligence": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    "manual_labor": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    "endurance": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    }
+                                },
+                                "type": "object"
+                            },
+                            "daily_gains": {
+                                "required": [
+                                    "intelligence",
+                                    "manual_labor",
+                                    "endurance"
+                                ],
+                                "properties": {
+                                    "intelligence": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    "manual_labor": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    },
+                                    "endurance": {
+                                        "type": "integer",
+                                        "format": "int32"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "TornCompanySpecial": {
+                "required": [
+                    "id",
+                    "name",
+                    "effect",
+                    "cost",
+                    "rating"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanySpecialId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "effect": {
+                        "type": "string"
+                    },
+                    "cost": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "type": "object"
+            },
+            "TornCompanyStock": {
+                "required": [
+                    "id",
+                    "name",
+                    "cost",
+                    "rrp"
+                ],
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/CompanyStockId"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "cost": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "rrp": {
+                        "type": "integer",
+                        "format": "int64"
                     }
                 },
                 "type": "object"
@@ -34446,7 +35170,24 @@
             "ApiTimestamp": {
                 "name": "timestamp",
                 "in": "query",
-                "description": "Timestamp to bypass cache or get the data in specific point in time",
+                "description": "Timestamp to bypass cache",
+                "required": false,
+                "schema": {
+                    "oneOf": [
+                        {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }
+            },
+            "ApiTimestampSpecificPointInTime": {
+                "name": "timestamp",
+                "in": "query",
+                "description": "Timestamp to get the data in specific point in time",
                 "required": false,
                 "schema": {
                     "oneOf": [

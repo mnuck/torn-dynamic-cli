@@ -50,6 +50,25 @@ MANIFEST=(
     kassie_war_report.html
 )
 
+# The canary is verified against the live hub after deploying. Capture it from
+# the curated list BEFORE extras are appended, so a deliberately-unguessable
+# filename never gets echoed to the terminal or a CI log.
+CANARY="${MANIFEST[$(( ${#MANIFEST[@]} - 1 ))]}"
+
+# Pages whose URL is the only thing protecting them cannot be named in this
+# repo -- it is public, so committing the filename publishes the "secret".
+# Same treatment as PAGES_PROJECT: the mechanism is public, the value is not.
+# Set EXTRA_MANIFEST in .env to a space-separated list of extra generated/
+# files to ship. Obscurity is not access control: anyone given the URL, or
+# anyone it leaks to, can read the page. Do not put here what must not be read.
+if [[ -z "${EXTRA_MANIFEST:-}" && -f .env ]]; then
+    EXTRA_MANIFEST="$(grep -m1 '^EXTRA_MANIFEST=' .env | cut -d= -f2- | tr -d '"'"'"' ')"
+fi
+if [[ -n "${EXTRA_MANIFEST:-}" ]]; then
+    for _f in $EXTRA_MANIFEST; do MANIFEST+=("$_f"); done
+    echo "  (+$(echo "$EXTRA_MANIFEST" | wc -w | tr -d ' ') unlisted file(s) from EXTRA_MANIFEST)"
+fi
+
 OC_DASHBOARD=".agents/skills/oc-dashboard/dashboard.html"
 
 # nvm-managed node hosts the wrangler CLI.
@@ -90,8 +109,6 @@ wrangler pages deploy "$STAGING" \
 
 # Verify the hub actually serves a manifest file rather than falling back to
 # index.html — a preview-only deploy returns 200 for everything and looks fine.
-# macOS ships bash 3.2, which has no negative array subscripts.
-CANARY="${MANIFEST[$(( ${#MANIFEST[@]} - 1 ))]}"
 echo "Verifying $HUB_URL/$CANARY ..."
 sleep 3
 if curl -sfL "$HUB_URL/$CANARY" \
