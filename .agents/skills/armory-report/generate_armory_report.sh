@@ -1,9 +1,12 @@
 #!/bin/bash
 
+set -eo pipefail
+
 # Armory Check Report Generator
 # Generates report with costs and market links, accounting for loaned items
 #
-# Run from the repo root (the script shells out to ./torn). If TORN_REPO_ROOT
+# Run from the repo root (the script shells out to ./torn for prices and
+# curls the v1 API for inventory). If TORN_REPO_ROOT
 # is set we cd there; otherwise we cd to the repo root inferred from this
 # script's own location (../../.. relative to .agents/skills/armory-report/).
 
@@ -12,6 +15,17 @@ if [ -n "$TORN_REPO_ROOT" ]; then
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$SCRIPT_DIR/../../.."
+fi
+
+# The faction inventory selections (armor/medical/temporary) were removed from
+# the v2 API (error 22: "This selection is only available in API v1"), so we
+# hit v1 directly with curl here. Prices still come from the v2 CLI below.
+if [ -z "$TORN_API_KEY" ] && [ -f .env ]; then
+    TORN_API_KEY=$(awk -F= '/^TORN_API_KEY=/{print $2}' .env)
+fi
+if [ -z "$TORN_API_KEY" ]; then
+    echo "error: TORN_API_KEY not set (env or .env)" >&2
+    exit 1
 fi
 
 # Item ID mapping - armor
@@ -52,49 +66,75 @@ IPECAC_TARGET=100
 BLOOD_TARGET=300
 GRENADE_TARGET=1000
 
-echo "Fetching armor inventory..."
-ARMOR=$(./torn faction --selections armor 2>/dev/null)
+ITEM_IDS="651,652,653,654,332,333,334,731,68,67,1363,732,733,734,735,736,737,738,739,242,256,226,392,222"
 
-echo "Fetching medical inventory..."
-MEDICAL=$(./torn faction --selections medical 2>/dev/null)
-
-echo "Fetching grenade inventory..."
-TEMPORARY=$(./torn faction --selections temporary 2>/dev/null)
+echo "Fetching faction inventory..."
+INVENTORY=$(curl -fsS --connect-timeout 10 --max-time 60 \
+    -H "Authorization: ApiKey $TORN_API_KEY" \
+    "https://api.torn.com/v1/faction/info?selections=armor,medical,temporary") || {
+    echo "error: faction inventory request failed" >&2
+    exit 1
+}
+# Empty arrays mean zero stock; missing selections and invalid counts mean a
+# failed response. Torn may return an API error inside an HTTP 200 response.
+jq -e '
+    def count: type == "number" and . >= 0 and . == floor;
+    .error == null and
+    all(.armor, .medical, .temporary; type == "array") and
+    all(.armor[], .medical[], .temporary[];
+        (.name | type == "string") and (.quantity | count)) and
+    all(.armor[], .temporary[];
+        (.available | count) and (.loaned | count))
+' <<< "$INVENTORY" >/dev/null || {
+    echo "error: invalid faction inventory response (API error, missing selection, or malformed stock)" >&2
+    exit 1
+}
 
 echo "Fetching item prices..."
-PRICES=$(./torn torn items --ids "651,652,653,654,332,333,334,731,68,67,1363,732,733,734,735,736,737,738,739,242,256,226,392,222" 2>/dev/null)
+PRICES=$(./torn torn items --ids "$ITEM_IDS") || {
+    echo "error: item price request failed" >&2
+    exit 1
+}
+# Require one usable price for every tracked item; missing prices must never
+# silently reduce the vault estimate to zero.
+jq -e --arg ids "$ITEM_IDS" '
+    . as $response |
+    .error == null and (.items | type == "array") and
+    all($ids | split(",")[] | tonumber;
+        . as $id |
+        [$response.items[] | select(.id == $id)] |
+        length == 1 and
+        (.[0].value.market_price |
+            type == "number" and . > 0 and . == floor))
+' <<< "$PRICES" >/dev/null || {
+    echo "error: invalid item prices (API error, missing item, or invalid market price)" >&2
+    exit 1
+}
 
-# Extract armor quantities and loaned counts by name
-BOOTS_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Boots") | .quantity' 2>/dev/null || echo 0)
-BOOTS_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Boots") | .loaned' 2>/dev/null || echo 0)
-BOOTS=$((BOOTS_QTY - BOOTS_LOANED))
+# Both armor and temporary items expose availability with loans already removed.
+# Sum matching rows, and treat an absent item in a valid selection as zero stock.
+inventory_count() {
+    jq -r --arg category "$1" --arg name "$2" --arg field "$3" \
+        '[.[$category][] | select(.name == $name) | .[$field]] | add // 0' <<< "$INVENTORY"
+}
 
-GLOVES_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Gloves") | .quantity' 2>/dev/null || echo 0)
-GLOVES_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Gloves") | .loaned' 2>/dev/null || echo 0)
-GLOVES=$((GLOVES_QTY - GLOVES_LOANED))
-
-HELMET_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Helmet") | .quantity' 2>/dev/null || echo 0)
-HELMET_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Helmet") | .loaned' 2>/dev/null || echo 0)
-HELMET=$((HELMET_QTY - HELMET_LOANED))
-
-PANTS_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Pants") | .quantity' 2>/dev/null || echo 0)
-PANTS_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Pants") | .loaned' 2>/dev/null || echo 0)
-PANTS=$((PANTS_QTY - PANTS_LOANED))
-
-VEST_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Vest") | .quantity' 2>/dev/null || echo 0)
-VEST_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Combat Vest") | .loaned' 2>/dev/null || echo 0)
-VEST=$((VEST_QTY - VEST_LOANED))
-
-LIQUID_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Liquid Body Armor") | .quantity' 2>/dev/null || echo 0)
-LIQUID_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Liquid Body Armor") | .loaned' 2>/dev/null || echo 0)
-LIQUID=$((LIQUID_QTY - LIQUID_LOANED))
-
-FLEXIBLE_QTY=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Flexible Body Armor") | .quantity' 2>/dev/null || echo 0)
-FLEXIBLE_LOANED=$(echo "$ARMOR" | jq '.armor[] | select(.name == "Flexible Body Armor") | .loaned' 2>/dev/null || echo 0)
-FLEXIBLE=$((FLEXIBLE_QTY - FLEXIBLE_LOANED))
+BOOTS=$(inventory_count armor "Combat Boots" available)
+BOOTS_LOANED=$(inventory_count armor "Combat Boots" loaned)
+GLOVES=$(inventory_count armor "Combat Gloves" available)
+GLOVES_LOANED=$(inventory_count armor "Combat Gloves" loaned)
+HELMET=$(inventory_count armor "Combat Helmet" available)
+HELMET_LOANED=$(inventory_count armor "Combat Helmet" loaned)
+PANTS=$(inventory_count armor "Combat Pants" available)
+PANTS_LOANED=$(inventory_count armor "Combat Pants" loaned)
+VEST=$(inventory_count armor "Combat Vest" available)
+VEST_LOANED=$(inventory_count armor "Combat Vest" loaned)
+LIQUID=$(inventory_count armor "Liquid Body Armor" available)
+LIQUID_LOANED=$(inventory_count armor "Liquid Body Armor" loaned)
+FLEXIBLE=$(inventory_count armor "Flexible Body Armor" available)
+FLEXIBLE_LOANED=$(inventory_count armor "Flexible Body Armor" loaned)
 
 # Extract medical quantities (no loaned for medical items)
-med_qty() { result=$(echo "$MEDICAL" | jq --arg n "$1" '.medical[] | select(.name == $n) | .quantity' 2>/dev/null); echo "${result:-0}"; }
+med_qty() { inventory_count medical "$1" quantity; }
 
 EMPTY_BAG=$(med_qty "Empty Blood Bag")
 SFAK=$(med_qty "Small First Aid Kit")
@@ -109,11 +149,10 @@ BAG_ABNEG=$(med_qty "Blood Bag : AB-")
 BAG_OPOS=$(med_qty "Blood Bag : O+")
 BAG_ONEG=$(med_qty "Blood Bag : O-")
 
-# Extract grenade quantities — "temporary" selection already provides
-# "available" (quantity minus loaned), unlike armor which needs manual subtraction
-grenade_available() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .available' 2>/dev/null); echo "${result:-0}"; }
-grenade_qty() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .quantity' 2>/dev/null); echo "${result:-0}"; }
-grenade_loaned() { result=$(echo "$TEMPORARY" | jq --arg n "$1" '.temporary[] | select(.name == $n) | .loaned' 2>/dev/null); echo "${result:-0}"; }
+# Grenade availability already excludes loans.
+grenade_available() { inventory_count temporary "$1" available; }
+grenade_qty() { inventory_count temporary "$1" quantity; }
+grenade_loaned() { inventory_count temporary "$1" loaned; }
 
 HEG=$(grenade_available "HEG")
 HEG_QTY=$(grenade_qty "HEG")
@@ -136,7 +175,7 @@ FLASH_QTY=$(grenade_qty "Flash Grenade")
 FLASH_LOANED=$(grenade_loaned "Flash Grenade")
 
 # Extract prices (using market_price)
-price_of() { echo "$PRICES" | jq ".items[] | select(.id == $1) | .value.market_price" 2>/dev/null || echo 0; }
+price_of() { jq -r --argjson id "$1" '.items[] | select(.id == $id) | .value.market_price' <<< "$PRICES"; }
 
 BOOTS_PRICE=$(price_of $BOOTS_ID)
 GLOVES_PRICE=$(price_of $GLOVES_ID)
@@ -242,7 +281,9 @@ format_number() {
 
 # Generate report
 mkdir -p generated
-cat > generated/armory-report.md << REPORT
+REPORT_TMP=$(mktemp generated/.armory-report.XXXXXX)
+trap 'rm -f "$REPORT_TMP"' EXIT
+cat > "$REPORT_TMP" << REPORT
 ## Armory Check Report
 Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
@@ -302,6 +343,7 @@ _Medical targets: Empty Blood Bag x$EMPTY_BAG_TARGET, Small FAK x$SFAK_TARGET, F
 _Grenade target: $GRENADE_TARGET units available each (HEG, Tear Gas, Smoke Grenade, Pepper Spray, Flash Grenade)_
 _Updated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")_
 REPORT
+mv "$REPORT_TMP" generated/armory-report.md
 
 echo "✓ Report generated: generated/armory-report.md"
 echo ""
