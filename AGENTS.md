@@ -111,7 +111,7 @@ torn --help
 
 **War, faction, and economy**
 - `torn-company-status/` - Company star rating risk analysis skill
-- `armory-report/generate_armory_report.sh` - Generates `generated/armory-report.md`; run from project root. Covers armor, medical, and grenades. Armor needs `loaned` subtracted from `quantity` by hand; the `temporary` selection (grenades) already returns a computed `available` field — don't subtract twice
+- `armory-report/generate_armory_report.sh` - Generates `generated/armory-report.md`; run from project root. Covers armor, medical, and grenades. Armor and grenades both return computed `available` counts — don't subtract loans again. Inventory comes from one **v1** API request (the v2 `faction` endpoint rejects these selections with error 22), prices from the v2 CLI. Invalid inventory or prices abort without replacing the previous report; empty inventory arrays are valid
 - `respect-dashboard/generate_respect_dashboard.sh` - Refreshes `generated/respect_dashboard.html`, the daily faction respect-gain visualization. Shows respect *lost* to incoming attacks below the axis as well as gained above it; both sides split ranked-war vs. other
 - `chain-dashboard/generate_chain_dashboard.sh` - Refreshes `generated/chain_dashboard.html`, an animated hit race over a chain. Ordering comes from each attack's `chain` field (running count after that hit); non-counting results report `chain: 0` and are dropped. Defaults to the live chain, `--chain-id` for a past one
 - `war-dashboard/` - Ranked-war net-trade dashboard (see the dedicated entry below)
