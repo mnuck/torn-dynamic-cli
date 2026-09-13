@@ -61,7 +61,7 @@ go build -o torn ./cmd/torn/
 
 **Go version:** 1.24.4
 **Module:** `github.com/mnuck/torn-dynamic-cli`
-**Current spec version:** 6.2.0
+**Current spec version:** 6.13.5
 
 ## Dependencies
 
@@ -132,7 +132,7 @@ The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashbo
 
 `.agents/skills/publish/deploy.sh` assembles a temp staging dir from a curated `MANIFEST` (edit the array in the script to change what ships) plus the OC dashboard as `index.html`, then runs `wrangler pages deploy`. It regenerates nothing — refresh each dashboard via its own skill first. Requires `wrangler` on `PATH` (the script sources nvm to find it). `.wrangler/` local state is gitignored. Use the `publish` skill for the full refresh → preview → deploy flow.
 
-**Deploys are verified, not assumed.** Cloudflare Pages only treats its configured production branch as production, and `wrangler` infers the branch from git — so deploying from a feature branch publishes to a *preview* URL while reporting success, and the live hub silently keeps serving the old build. `deploy.sh` pins `--branch` (`PAGES_BRANCH`, default `main`) and then fetches a manifest file from the live hub and compares its content against what was staged. A preview-only deploy returns 200 for every path (falling back to `index.html`), so only a content comparison catches it. The script exits non-zero on mismatch — don't tell anyone it's live until it passes.
+**Deploys are verified, not assumed.** Cloudflare Pages only treats its configured production branch as production, and `wrangler` infers the branch from git — so deploying from a feature branch publishes to a *preview* URL while reporting success, and the live hub silently keeps serving the old build. `deploy.sh` pins `--branch` (`PAGES_BRANCH`, default `main`) and then fetches every staged file, `index.html` included, from the live hub and byte-compares it against what was staged (with retries for edge-cache lag). A preview-only deploy returns 200 for every path (falling back to `index.html`), and an unchanged file matches the previous build too, so only a full comparison that includes files which change every refresh catches it. The script exits non-zero on mismatch — don't tell anyone it's live until it passes.
 
 ## Price Capture (`deploy/`)
 

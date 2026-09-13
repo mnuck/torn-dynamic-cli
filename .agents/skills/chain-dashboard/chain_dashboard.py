@@ -154,6 +154,7 @@ def fetch_chain_attacks(api_key, faction_id, chain_start, chain_end=None):
         url += f"&to={chain_end}"
 
     by_chain_num = {}
+    seen_ids = set()
     page = 0
     while url:
         page += 1
@@ -161,6 +162,13 @@ def fetch_chain_attacks(api_key, faction_id, chain_start, chain_end=None):
         data = api_get(url, api_key)
         attacks = data.get("attacks", [])
         print(f"{len(attacks)} records")
+        # A `to`-bounded walk never gets an empty `next`: Torn's next link
+        # starts `from` at the last record's timestamp inclusively, so it keeps
+        # re-serving that final attack forever. Stop once a page adds nothing.
+        new_ids = {a.get("id") for a in attacks} - seen_ids
+        if not new_ids:
+            break
+        seen_ids |= new_ids
         for a in attacks:
             attacker = a.get("attacker")
             if not attacker:
@@ -465,7 +473,9 @@ def main():
 
     if args.chain_id:
         chain = {"id": args.chain_id}
-        report = api_get(f"{API_BASE}/faction/chainreport?chainId={args.chain_id}", api_key)
+        # Must be the path form: Torn ignores a ?chainId= query param and
+        # silently returns the most recent chain's report instead.
+        report = api_get(f"{API_BASE}/faction/{args.chain_id}/chainreport", api_key)
         cr = report.get("chainreport", {})
         chain["start"] = cr.get("start")
         chain["end"] = cr.get("end")
