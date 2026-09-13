@@ -88,18 +88,34 @@ wrangler pages deploy "$STAGING" \
     --branch "$PAGES_BRANCH" \
     --commit-dirty=true
 
-# Verify the hub actually serves a manifest file rather than falling back to
-# index.html — a preview-only deploy returns 200 for everything and looks fine.
-# macOS ships bash 3.2, which has no negative array subscripts.
-CANARY="${MANIFEST[$(( ${#MANIFEST[@]} - 1 ))]}"
-echo "Verifying $HUB_URL/$CANARY ..."
-sleep 3
-if curl -sfL "$HUB_URL/$CANARY" \
-     | grep -qF "$(head -c 200 "generated/$CANARY" | tail -c 60)"; then
-    echo "Done. Live at $HUB_URL"
-else
-    echo "WARN: $CANARY did not verify on the live hub — it may have deployed to a" >&2
-    echo "      preview URL, or the edge cache has not caught up. Re-check before" >&2
-    echo "      telling anyone it is live." >&2
-    exit 1
-fi
+# Verify every staged file is served byte-for-byte from the live hub. A
+# preview-only deploy returns 200 for everything (falling back to index.html),
+# and an unchanged file matches the *previous* build just as well, so only a
+# full-content comparison of the files that changed catches it — index.html
+# (the OC dashboard) changes on every refresh, and it is checked too. Retry a
+# few times for the edge cache to catch up.
+verify_live() {
+    local f mismatched=()
+    for f in "$STAGING"/*; do
+        f="$(basename "$f")"
+        curl -sfL "$HUB_URL/$f" | cmp -s - "$STAGING/$f" || mismatched+=("$f")
+    done
+    if [ "${#mismatched[@]}" -eq 0 ]; then
+        return 0
+    fi
+    echo "  not yet live: ${mismatched[*]}" >&2
+    return 1
+}
+
+echo "Verifying staged files against $HUB_URL ..."
+for attempt in 1 2 3 4 5; do
+    sleep 5
+    if verify_live; then
+        echo "Done. Live at $HUB_URL"
+        exit 0
+    fi
+done
+echo "WARN: the live hub is not serving this build — it may have deployed to a" >&2
+echo "      preview URL, or the edge cache has not caught up. Re-check before" >&2
+echo "      telling anyone it is live." >&2
+exit 1
