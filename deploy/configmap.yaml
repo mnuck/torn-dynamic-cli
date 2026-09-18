@@ -80,7 +80,21 @@ data:
         return None
 
 
+    # Torn errors that no other item in this run can get past: the key itself is
+    # bad (empty 1, incorrect 2, owner in federal jail 10, disabled for inactivity
+    # 13, access level too low 16, paused by owner 18) or the whole API is shut to
+    # us (IP block 8, API disabled 9, daily limit 14). Stop the run and fail it, so
+    # a dead key shows up as a Failed job instead of a Completed one that quietly
+    # captured nothing -- which is exactly what happened when a key was rotated.
+    FATAL_CODES = {1, 2, 8, 9, 10, 13, 14, 16, 18}
+
+
+    class FatalAPIError(Exception):
+        pass
+
+
     def fetch_item(item_id, api_key):
+        """Capture one item. Returns True if a row was written, False if skipped."""
         url = f'https://api.torn.com/v2/market/{item_id}/itemmarket'
         req = urllib.request.Request(url, headers={
             'Authorization': f'ApiKey {api_key}',
@@ -92,8 +106,14 @@ data:
         except urllib.error.HTTPError as e:
             body = e.read()
             data = json.loads(body) if body else {'error': {'code': e.code, 'error': e.reason}}
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            # One item's network blip shouldn't lose the rest of the run.
+            log(f'item {item_id} fetch failed, skipping: {e}')
+            return False
 
         error = data.get('error', {}) or {}
+        if error.get('code') in FATAL_CODES:
+            raise FatalAPIError(f'item {item_id}: {error}')
         if error.get('code') == 5:
             log(f'item {item_id} rate limited, skipping')
             return False
@@ -112,7 +132,19 @@ data:
         log('ERROR: no API key found')
         sys.exit(1)
 
-    for n, (item_id, _name) in enumerate(ITEMS):
-        if n:
-            time.sleep(SLEEP_BETWEEN)
-        fetch_item(item_id, api_key)
+    captured = 0
+    try:
+        for n, (item_id, _name) in enumerate(ITEMS):
+            if n:
+                time.sleep(SLEEP_BETWEEN)
+            captured += fetch_item(item_id, api_key)
+    except FatalAPIError as e:
+        log(f'ERROR: {e} -- aborting run')
+        print(f'capture failed: {e}', file=sys.stderr)
+        sys.exit(1)
+
+    log(f'run: {captured}/{len(ITEMS)} items captured')
+    if captured == 0:
+        # Skipping one rate-limited item is normal; capturing nothing at all is not.
+        print('capture failed: no items captured (see capture.log)', file=sys.stderr)
+        sys.exit(1)

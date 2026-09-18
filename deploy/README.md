@@ -79,6 +79,13 @@ kubectl cp <pod>:/data/prices.jsonl data/market-snapshots/prices.jsonl
   the key is busy elsewhere; `capture.py` logs and skips that item rather than
   retrying, since the next run is only 30 minutes out. A gap in the series
   costs less than a retry storm against a key that other tooling shares.
+- **A dead key or an empty run fails the Job.** A key-level Torn error (bad,
+  paused, or under-privileged key; IP block; daily limit) aborts the run at
+  once with exit 1. So does a run that captured no items at all, e.g. every
+  fetch failed or every item was rate limited. Check `kubectl get jobs` for
+  `Failed` rather than trusting `Completed`. One skipped item in an otherwise
+  good run still exits 0. `backoffLimit: 0` with `restartPolicy: Never` means
+  a failed run is never retried; the next scheduled run is the retry.
 - **`prices.jsonl` is append-only.** The point is the series over time — no run
   ever rewrites an earlier line.
 - **`concurrencyPolicy: Forbid`** — a slow run must not overlap the next one and
