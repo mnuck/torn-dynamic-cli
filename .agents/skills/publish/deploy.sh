@@ -64,15 +64,26 @@ fi
 cp "$OC_DASHBOARD" "$STAGING/index.html"
 echo "  staged index.html  <- $OC_DASHBOARD"
 
-# Curated dashboards from generated/. Missing files warn but don't abort.
+# Curated dashboards from generated/. A missing or empty file aborts the deploy:
+# each Pages deployment replaces the whole site, so anything not staged here goes
+# offline rather than keeping its previous copy (confirmed 2026-09-18, when
+# dropping three pages from MANIFEST removed them from the live hub). Collect
+# every problem before exiting so one run reports them all.
+missing=()
 for f in "${MANIFEST[@]}"; do
-    if [ -f "generated/$f" ]; then
+    if [ -s "generated/$f" ]; then
         cp "generated/$f" "$STAGING/$f"
         echo "  staged $f"
     else
-        echo "  WARN: generated/$f missing — skipping (regenerate via its skill)" >&2
+        missing+=("$f")
     fi
 done
+if [ "${#missing[@]}" -gt 0 ]; then
+    echo "ERROR: missing or empty in generated/ — deploying now would take them offline:" >&2
+    printf '         %s\n' "${missing[@]}" >&2
+    echo "       Regenerate each via its skill, or remove it from MANIFEST to drop it on purpose." >&2
+    exit 1
+fi
 
 # Pages treats only its production branch as production; wrangler otherwise infers
 # the branch from git, so deploying from a feature branch silently publishes to a
