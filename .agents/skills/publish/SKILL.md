@@ -75,8 +75,11 @@ output and stop; do not re-run with a different `--branch` to force it through.
 
 ## Notes
 
-- Missing manifest files warn but don't abort the deploy — the site keeps the
-  previously deployed copy of anything not staged this run.
+- Every deploy replaces the whole site: a page not staged this run goes
+  offline, it does not keep its previous copy. So `deploy.sh` aborts before
+  uploading if any manifest file is missing or empty, and lists them all.
+  Regenerate them via their skills; to retire a page on purpose, remove it
+  from `MANIFEST`. Don't delete the entry just to get past the error.
 - Pushing to git is separate from deploying. `dashboard.html` refreshes should be
   committed (`Data refresh: N crimes...`); the other dashboards under `generated/`
   are gitignored regenerable output.
