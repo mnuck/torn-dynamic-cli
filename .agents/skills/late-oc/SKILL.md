@@ -76,7 +76,9 @@ The user has automation that polls faction member statuses every ~5 minutes and 
 
 ### Data source: BigQuery (preferred)
 
-Try BigQuery first. The data lives in `torn-willie.torn_rw_stats.state_changes` with this schema:
+Try BigQuery first. The data lives in `<BQ_PROJECT>.torn_rw_stats.state_changes`. The GCP project id is
+`BQ_PROJECT` in the repo-root `.env` — it is kept out of this public repo; if it's missing, ask the user
+for it rather than guessing. Schema:
 
 | Column | Type |
 |--------|------|
@@ -96,22 +98,24 @@ The table is partitioned by `timestamp` and clustered by `faction_id, member_id`
 Use the `bq` command-line tool. The `bq` CLI is available at `$PATH` (shipped with the Google Cloud SDK). Use these flags for every query:
 
 ```bash
-bq query --project_id=torn-willie --use_legacy_sql=false --format=json "<SQL HERE>"
+BQ_PROJECT=$(grep -m1 '^BQ_PROJECT=' .env | cut -d= -f2- | tr -d "\"' ")
+bq query --project_id="${BQ_PROJECT:?set BQ_PROJECT in .env}" --use_legacy_sql=false --format=json "<SQL HERE>"
 ```
 
-**MCP fallback:** If you have a BigQuery MCP tool available, you may use it instead. If the MCP tool fails or is unavailable, fall back to the `bq` CLI command above.
+**MCP fallback:** If you have a BigQuery MCP tool available, you may use it instead. MCP tools don't expand shell variables, so write the project id from `.env` into the SQL yourself. If the MCP tool fails or is unavailable, fall back to the `bq` CLI command above.
 
 #### Query: find each member's status at ready time
 
 For each OC member, find the **last status change before `ready_at`** — this tells you their state when the OC went live:
 
 ```bash
-bq query --project_id=torn-willie --use_legacy_sql=false --format=json \
+BQ_PROJECT=$(grep -m1 '^BQ_PROJECT=' .env | cut -d= -f2- | tr -d "\"' ")
+bq query --project_id="${BQ_PROJECT:?set BQ_PROJECT in .env}" --use_legacy_sql=false --format=json \
   "SELECT member_name, status_state, status_description, status_travel_type, FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp) as ts
   FROM (
     SELECT *,
       ROW_NUMBER() OVER (PARTITION BY member_name ORDER BY timestamp DESC) AS rn
-    FROM \`torn-willie.torn_rw_stats.state_changes\`
+    FROM \`$BQ_PROJECT.torn_rw_stats.state_changes\`
     WHERE member_name IN ('Name1', 'Name2', 'Name3')
       AND timestamp <= TIMESTAMP_SECONDS(<ready_at_unix>)
       AND timestamp >= TIMESTAMP_SECONDS(<ready_at_unix> - 86400)
@@ -246,9 +250,10 @@ Example: if a member's status changed from "Okay" → "Traveling to South Africa
 
 Query to find outbound flight duration:
 ```bash
-bq query --project_id=torn-willie --use_legacy_sql=false --format=json \
+BQ_PROJECT=$(grep -m1 '^BQ_PROJECT=' .env | cut -d= -f2- | tr -d "\"' ")
+bq query --project_id="${BQ_PROJECT:?set BQ_PROJECT in .env}" --use_legacy_sql=false --format=json \
   "SELECT member_name, status_state, status_description, FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp) as ts
-  FROM \`torn-willie.torn_rw_stats.state_changes\`
+  FROM \`$BQ_PROJECT.torn_rw_stats.state_changes\`
   WHERE member_name = 'MemberName'
   ORDER BY timestamp DESC
   LIMIT 20"
