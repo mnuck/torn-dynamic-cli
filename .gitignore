@@ -45,5 +45,8 @@ __pycache__/
 # Cloudflare wrangler local state (created on first `publish` deploy)
 .wrangler/
 
+# Obsidian vault settings (local editor state; workspace.json lists open files)
+.obsidian/
+
 # macOS Finder metadata
 .DS_Store

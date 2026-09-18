@@ -5,8 +5,8 @@ description: >
   whenever the user says "publish",
   "deploy", "ship it", "push to prod", "update the live dashboards", or anything
   that implies refreshing the live faction dashboard site. The hub's home page is
-  the OC revenue dashboard; the rest (cpr, racing, chain, respect, track_odds,
-  fastband, streakiness) is pulled from generated/.
+  the OC revenue dashboard; the rest (cpr, racing, chain, respect, fastband,
+  war) is pulled from generated/.
 ---
 
 # Publish Skill
@@ -34,7 +34,8 @@ Each dashboard has its own skill/generator; run the ones that are stale:
 - Racing — `racing-dashboard` skill
 - Chain — `chain-dashboard` skill
 - Respect — `respect-dashboard` skill
-- Track odds / fastband — their respective skills
+- Fastband — `fast-band-delta` skill
+- War — `war-dashboard` skill
 
 The hub manifest (which files ship) is the `MANIFEST` array at the top of
 `.agents/skills/publish/deploy.sh` plus the OC dashboard as `index.html`. Edit
@@ -63,8 +64,14 @@ This assembles a temp staging dir (OC dashboard → `index.html`, plus the
 manifest files from `generated/`), runs `wrangler pages deploy` against the
 configured project, and cleans up. Show the wrangler output.
 
-Requires `wrangler` on `PATH` — the script sources nvm to find it. When
-complete, relay the live URL the script prints in its final line.
+Requires `wrangler` on `PATH` — the script sources nvm to find it.
+
+After `wrangler` returns, the script fetches every staged file from the live
+hub and byte-compares it with what was staged. **Only tell the user it is live
+if that verification passes** (exit 0), then relay the URL from its final
+line. A non-zero exit means the live hub is not serving this build — often a
+preview-branch deploy, which `wrangler` reports as success. Show the mismatch
+output and stop; do not re-run with a different `--branch` to force it through.
 
 ## Notes
 
