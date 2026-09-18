@@ -1,7 +1,7 @@
 ---
 name: oc-payout
 description: >
-  Pay out a Torn organized crime that has already fired. Provide a crime URL or ID, determine if it was late (≈90 s server lag), identify absent members, and split the reward (faction keeps 50 %, remainder among on‑time members). Generates payout links. Do NOT use for unfired OCs; use the late‑oc skill for pre‑execution queries.
+  Pay out a Torn organized crime that has already fired. Provide a crime URL or ID, determine if it was late (≈90 s server lag), identify absent members, and split the reward (faction keeps 50 %, remainder among on‑time members). Generates payout links. Do NOT use for unfired OCs; use the late‑oc skill for pre‑execution queries.
 ---
 
 # OC Payout
@@ -42,7 +42,36 @@ faction's hands first, and for item-reward OCs you often want to confirm the ite
 
 ## Step 1: Was it late?
 
-**If no crime ID is provided**, scan the executed feed for all unpaid successful crimes —
+**User provided a URL or ID?** Look up the crime directly — never scan the executed feed
+when the user gave you an ID. The direct lookup is a single request, always works, and
+avoids the time-window guessing game. A URL looks like
+`https://www.torn.com/factions.php?step=your&type=1#/tab=crimes&crimeId=1685284` — the ID
+is the number after `crimeId=`.
+
+```bash
+./torn faction crime --crimeId 1685284 2>&1 | python3 -c "
+import json, sys, datetime
+data = json.load(sys.stdin)
+c = data.get('Crime') or data.get('crime')
+if not c:
+    print('Not found:', json.dumps(data, indent=2)); sys.exit()
+ready, ex = c.get('ready_at'), c.get('executed_at')
+print(f'Name:     {c.get(\"name\")}')
+print(f'Status:   {c.get(\"status\")}')
+print(f'Ready:    {datetime.datetime.fromtimestamp(ready, tz=datetime.timezone.utc).strftime(\"%Y-%m-%d %H:%M:%S UTC\")}')
+if ex:
+    delta = ex - ready
+    print(f'Executed: {datetime.datetime.fromtimestamp(ex, tz=datetime.timezone.utc).strftime(\"%Y-%m-%d %H:%M:%S UTC\")}')
+    print(f'Delta:    {delta}s ({delta//60}m {delta%60}s)')
+    print(f'Verdict:  {\"LATE\" if delta > 90 else \"on time (server lag)\"}')
+else:
+    print('Not executed yet')
+print(f'Prev ID:  {c.get(\"previous_crime_id\")}')
+print(f'Payout:   {c.get(\"rewards\", {}).get(\"payout\")}')
+"
+```
+
+**No ID provided (broad question)?** Scan the executed feed for all unpaid successful crimes —
 `status == "Successful"` and `rewards.payout == null` means it hasn't been paid out yet:
 
 ```bash
@@ -77,35 +106,6 @@ themselves** — Torn only tracks the payout on the follow-up crime. Don't mista
 "still awaiting payout"; the scan above already filters these out. If a predecessor's
 follow-up hasn't executed/paid yet, it's still legitimately outstanding and will show up.
 
-**If a crime ID or URL is provided**, look up that specific crime. A URL looks like
-`https://www.torn.com/factions.php?step=your&type=1#/tab=crimes&crimeId=1685284` — the ID
-is the number after `crimeId=`.
-
-```bash
-./torn faction crimes --cat executed --filters executed_at 2>&1 | python3 -c "
-import json, sys, datetime
-CRIME_ID = 1685284  # <-- set this
-data = json.load(sys.stdin)
-for c in data.get('crimes', []):
-    if c.get('id') == CRIME_ID:
-        ready, ex = c['ready_at'], c.get('executed_at')
-        if not ex:
-            print(f'{c[\"name\"]}: not executed yet (status={c[\"status\"]})'); break
-        delta = ex - ready
-        r = datetime.datetime.fromtimestamp(ready, tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-        e = datetime.datetime.fromtimestamp(ex, tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-        print(f'Name:     {c[\"name\"]}')
-        print(f'Ready:    {r}')
-        print(f'Executed: {e}')
-        print(f'Delta:    {delta}s ({delta//60}m {delta%60}s)')
-        print(f'Prev ID:  {c.get(\"previous_crime_id\")}')
-        print(f'Payout:   {c[\"rewards\"][\"payout\"]}')
-        break
-else:
-    print('Not found in recent executed feed — may need a wider --from window or it is still planning.')
-"
-```
-
 **The server-lag rule (~90s).** Torn does not fire crimes on a tight tick — measured across
 84 real successful firings, the on-time deltas form a continuous cluster from **~4s up to
 ~64s** with no internal gap, then jump straight to the thousands of seconds (the genuinely
@@ -123,9 +123,6 @@ Trust the timestamps over the user's hunch. The leader will sometimes be sure an
 late when it actually fired in ~60 seconds — say so plainly and explain it was server lag,
 rather than agreeing. They rely on you to be the accurate one here.
 
-If the crime is too old to appear in the default feed, widen the window with
-`--from <unix> --filters executed_at` (always pair `--from` with `--filters executed_at`).
-
 **Chain crimes (`previous_crime_id` is set).** Some OC types (e.g. "No Reserve") spawn a
 mandatory follow-up crime. When the follow-up executes, its payout covers the members of
 **both** crimes — the follow-up and its predecessor. If a crime has a non-null
@@ -141,16 +138,13 @@ You only need this for crimes that were actually late — it determines how many
 money splits. Pull the slot members and resolve their names:
 
 ```bash
-./torn faction crimes --cat executed --filters executed_at 2>&1 | python3 -c "
+./torn faction crime --crimeId 1685284 2>&1 | python3 -c "
 import json, sys
-CRIME_ID = 1685284
 data = json.load(sys.stdin)
-for c in data.get('crimes', []):
-    if c.get('id') == CRIME_ID:
-        for s in c.get('slots', []):
-            u = s.get('user') or {}
-            print(f\"{s.get('position'):20s} id={u.get('id')}\")
-        break
+c = data.get('Crime') or data.get('crime')
+for s in c.get('slots', []):
+    u = s.get('user') or {}
+    print(f\"{s.get('position'):20s} id={u.get('id')}\")
 "
 # Resolve names from the faction roster (fetch it if /tmp copy is stale):
 # ./torn faction members > /tmp/faction_members.json
@@ -319,9 +313,10 @@ their confirmation to make, every time.
 
 ## Quick reference: the whole flow
 
-1. **Find crimes to pay:** if no ID given, scan for `status == "Successful"` and
-   `rewards.payout == null`. Already-paid crimes have `rewards.payout` populated.
-2. **Get crime ID** from the URL (`crimeId=`) if one is provided.
+1. **URL/ID provided?** Look up the crime directly with `torn faction crime --crimeId`.
+   Always prefer this over scanning the executed feed.
+2. **No ID?** Scan for `status == "Successful"` and `rewards.payout == null`.
+   Already-paid crimes have `rewards.payout` populated.
 3. **Chain check:** if `previous_crime_id` is non-null, fetch and check that crime too —
    its lateness affects who gets paid from this payout.
 4. Compare `ready_at` vs `executed_at`. ≤~90s = on time → "pay out normally." More = late →
