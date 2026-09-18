@@ -184,17 +184,18 @@ Then run both checks in one query — status at `ready_at`, and (for whoever was
 then) the first `Okay` timestamp in the 30-minute grace window:
 
 ```bash
-bq query --project_id=torn-willie --use_legacy_sql=false --format=json \
+BQ_PROJECT=$(grep -m1 '^BQ_PROJECT=' .env | cut -d= -f2- | tr -d "\"' ")
+bq query --project_id="${BQ_PROJECT:?set BQ_PROJECT in .env}" --use_legacy_sql=false --format=json \
   "WITH at_ready AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY member_name ORDER BY timestamp DESC) AS rn
-    FROM \`torn-willie.torn_rw_stats.state_changes\`
+    FROM \`$BQ_PROJECT.torn_rw_stats.state_changes\`
     WHERE member_name IN ('yadak','Jerventures','sykes07','LalalaLra')
       AND timestamp <= TIMESTAMP_SECONDS(<ready_at_unix>)
       AND timestamp >= TIMESTAMP_SECONDS(<ready_at_unix> - 86400 * 14)
   ),
   grace_return AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY member_name ORDER BY timestamp ASC) AS rn
-    FROM \`torn-willie.torn_rw_stats.state_changes\`
+    FROM \`$BQ_PROJECT.torn_rw_stats.state_changes\`
     WHERE member_name IN ('yadak','Jerventures','sykes07','LalalaLra')
       AND status_state = 'Okay'
       AND timestamp >= TIMESTAMP_SECONDS(<ready_at_unix>)
