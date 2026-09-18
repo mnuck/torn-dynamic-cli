@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Blocks pushing to main from this clone; merges go through PRs.
+# Enable once per clone:  git config core.hooksPath .githooks
+set -uo pipefail
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+    if [[ $remote_ref == refs/heads/main ]]; then
+        echo "pre-push: pushing to main is not allowed — open a PR from a feature/ or fix/ branch" >&2
+        exit 1
+    fi
+done
+exit 0

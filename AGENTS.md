@@ -167,6 +167,16 @@ Fetched API dumps and telemetry for the skills. **Not tracked** — `.gitignore`
 - Branch naming: `feature/<short-description>` or `fix/<short-description>`
 - **Commit before switching branches.** Uncommitted edits ride along across `checkout`, so a later `git reset --hard origin/main` silently destroys them. When splitting a large working tree into several PRs, commit each slice on its branch before moving on — don't carry the remainder through a reset. (If it happens anyway: `git stash` writes a real commit, and `git stash pop` prints its SHA on the way out, so `git checkout <sha> -- <paths>` gets the work back.)
 
+**Guardrails (enforced, not just documented).** Three layers back the rules in this file:
+
+| Layer | Binds | What it stops |
+|---|---|---|
+| `.claude/hooks/guard.sh` (via `.claude/settings.json`) | Claude Code agents | commit/push on or to `main`; force push; `--no-verify`; `git add -A`/`.`/`-f`; `reset --hard`/`checkout .`/`restore .` over uncommitted changes; `git clean -f` over untracked files; raw `wrangler pages deploy`; `kubectl apply` of a drifted ConfigMap; committing an API key; editing `deploy/configmap.yaml` or `.env*`; opening `addMoneyTo`/`giveMoneyTo` payout links. `gh pr merge` and `deploy.sh` always ask first |
+| `.githooks/` (`git config core.hooksPath .githooks`, once per clone) | everyone committing from a clone | commits on `main`, pushes to `main`, staged `.env*` / `data/` dumps / `.obsidian/`, API keys in staged changes |
+| GitHub ruleset `no-push-to-main` | everyone, server-side | direct pushes to `main` — the only layer `--no-verify` can't skip |
+
+A block names the rule it enforces; fix the cause rather than working around it. Change a rule by editing the hook **and** its cases in `.claude/hooks/guard_test.sh`, then run that script.
+
 **Standard workflow for every change:**
 
 ```bash

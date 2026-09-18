@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Local backstop for AGENTS.md's git rules — applies to humans and agents alike.
+# Enable once per clone:  git config core.hooksPath .githooks
+# (`--no-verify` skips it; the GitHub ruleset on main is the layer that can't be skipped.)
+set -uo pipefail
+
+fail() { echo "pre-commit: $1" >&2; exit 1; }
+
+[[ $(git branch --show-current) == main ]] \
+    && fail "don't commit on main — create a feature/ or fix/ branch first"
+
+# Files that must never be tracked in this public repo, even via `git add -f`.
+bad=$(git diff --cached --name-only --diff-filter=ACMR \
+    | grep -E '(^|/)\.env(\..+)?$|^data/.*\.(json|jsonl|csv|log)$|(^|/)\.obsidian/|^\.claude/settings\.local\.json$' \
+    | grep -v '\.env\.example$' || true)
+[[ -n $bad ]] && fail "refusing to commit private/regenerable files:"$'\n'"$bad"
+
+added=$(git diff --cached -U0 | grep '^+' | grep -v '^+++' || true)
+key=$(grep -m1 '^TORN_API_KEY=' .env 2>/dev/null | cut -d= -f2- | tr -d "\"' ")
+[[ -n $key ]] && grep -qF "$key" <<<"$added" && fail "staged changes contain the TORN_API_KEY from .env"
+grep -qE '(key=|API_KEY=|ApiKey )["'\'']?[A-Za-z0-9]{16}([^A-Za-z0-9]|$)' <<<"$added" \
+    && fail "staged changes contain what looks like a Torn API key"
+exit 0

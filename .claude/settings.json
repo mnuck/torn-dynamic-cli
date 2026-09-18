@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(gh pr merge:*)",
+      "Bash(.agents/skills/publish/deploy.sh:*)",
+      "Bash(./.agents/skills/publish/deploy.sh:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard.sh" }
+        ]
+      },
+      {
+        "matcher": "mcp__.*(navigate|preview_start|browser_batch)",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard.sh" }
+        ]
+      }
+    ]
+  }
+}
