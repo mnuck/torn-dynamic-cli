@@ -9,11 +9,15 @@ This repo is the faction's whole toolchain, not just the CLI. Four parts:
 | **CLI** | `cmd/torn/`, `pkg/` | Go binary — commands auto-generated from an embedded OpenAPI spec, plus hand-written `torn report *` analysis |
 | **Skills** | `.agents/skills/` | Where most faction analysis actually lives (see Skills below). `.claude/skills` symlinks here |
 | **Dashboard hub** | `.agents/skills/publish/` | Cloudflare Pages deployment of the generated dashboards |
-| **Capture + browser** | `deploy/`, `userscripts/` | k8s price-capture CronJob; Tampermonkey userscript |
+| **Capture + browser** | `deploy/`, `userscripts/` | k8s price-capture CronJob (**not deployed**); Tampermonkey userscript |
 
-Working directories `data/` and `generated/` are both gitignored; each has a README explaining what belongs there.
+Working directories `data/` and `generated/` are both gitignored. `data/README.md` maps each data file to the command that recreates it; `generated/` is wholly ignored, so it has no README — each dashboard's skill documents its own output.
 
 **Spec source:** `https://www.torn.com/swagger/openapi.json` (no auth required). To update: `curl -s https://www.torn.com/swagger/openapi.json > cmd/torn/torn_openapi_v2.json`
+
+## Talking About Faction Members
+
+Nearly every skill output names real teammates. Keep the *numbers* honest and direct — who clears a CPR threshold, who was absent when an OC went ready, who traded down in a war — but keep the language about the *person* respectful and forward-looking. Never use dismissive labels ("dead weight", "liability", "carry", "weak link", "deadbeat", and the like). Frame a shortfall as situational ("hasn't cleared 70% on this slot yet", "was offline at ready time"), not as a verdict on who they are. Default to they/them unless a member's pronouns are known. Allied factions' members get the same treatment.
 
 ## Architecture (Go)
 
@@ -126,7 +130,7 @@ torn --help
 
 ## Dashboard Hub / Deployment
 
-The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashboard (`.agents/skills/oc-dashboard/dashboard.html`) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, track_odds, fastband, streakiness) are served from `generated/`.
+The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashboard (`.agents/skills/oc-dashboard/dashboard.html`) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, fastband, war) are served from `generated/`.
 
 **The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
 
@@ -137,6 +141,8 @@ The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashbo
 ## Price Capture (`deploy/`)
 
 Kubernetes CronJob `torn-market-capture`, snapshotting the item market every 30 min onto a PVC. It exists because item prices are only available *now* — the API has no price-history endpoint.
+
+**Not currently deployed.** As of 2026-09-18 none of its resources (CronJob, secret, PVC) exist on the cluster, and the only price data is `data/market-snapshots/` from manual local runs ending 2026-07-26. Don't assume any price history exists past that date; if a task needs it, say so rather than analysing a series that isn't there. The manifests are kept so it can be reinstalled (see `deploy/README.md`).
 
 **`deploy/capture.py` is the single source of truth; `configmap.yaml` is generated from it** by `deploy/render-configmap.sh`. The CronJob mounts the ConfigMap at `/scripts`, so the copy must exist — but never hand-edit it. The two had already drifted apart once (different default paths), and neither side noticed because each copy only ever ran where its own defaults were right. `render-configmap.sh --check` exits non-zero on drift. Full detail in `deploy/README.md`.
 

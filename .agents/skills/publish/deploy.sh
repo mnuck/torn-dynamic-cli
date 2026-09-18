@@ -40,9 +40,6 @@ MANIFEST=(
     cpr_dashboard.html
     racing_dashboard.html
     respect_dashboard.html
-    track_odds.html
-    track_odds_for_alias.html
-    streakiness.html
     fastband_19934929.html
     war_incoming_45796.html
     war_nettrade_45796.html

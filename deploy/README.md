@@ -1,5 +1,9 @@
 # deploy/
 
+> **Not currently deployed.** As of 2026-09-18 the CronJob, secret, and PVC
+> are absent from the cluster; the last snapshot is a manual local run on
+> 2026-07-26. The manifests below still work for a fresh install.
+
 Kubernetes manifests for `torn-market-capture`: a CronJob that snapshots the
 item market every 30 minutes and appends one JSON line per item to a
 `prices.jsonl` on a PVC. Nothing else in this repo runs in a cluster.
