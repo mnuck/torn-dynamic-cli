@@ -13,9 +13,14 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # Never retry a failed run. capture.py exits non-zero on a dead key or an
+      # empty run so the Job shows Failed; the default backoffLimit (6) would
+      # turn that into a retry storm against a shared key. The next scheduled
+      # run is 30 minutes out anyway.
+      backoffLimit: 0
       template:
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: torn-market-capture
               image: python:3-alpine
