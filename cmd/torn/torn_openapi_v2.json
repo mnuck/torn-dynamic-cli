@@ -3,7 +3,7 @@
     "info": {
         "title": "Torn API",
         "description": "\n * The development of Torn's API v2 is still ongoing.\n * If selections remain unaltered, they will default to the API v1 version.\n * Unlike API v1, API v2 accepts both selections and IDs as path and query parameters.\n * If any discrepancies or errors are found, please submit a [bug report](https://www.torn.com/forums.php#/p=forums&f=19&b=0&a=0) on the Torn Forums.\n * In case you're using bots to check for changes on openapi.json file, make sure to specificy a custom user-agent header - CloudFlare sometimes prevents requests from default user-agents.",
-        "version": "6.13.5"
+        "version": "6.13.6"
     },
     "servers": [
         {
@@ -3388,6 +3388,12 @@
                     },
                     {
                         "$ref": "#/components/parameters/ApiOffset"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiSort"
+                    },
+                    {
+                        "$ref": "#/components/parameters/ApiCursor"
                     },
                     {
                         "$ref": "#/components/parameters/ApiTimestamp"
@@ -38204,6 +38210,15 @@
                         "DESC",
                         "ASC"
                     ]
+                }
+            },
+            "ApiCursor": {
+                "name": "cursor",
+                "in": "query",
+                "description": "Opaque cursor from pagination links for searches without a name, in either sort direction. Offset is ignored for these searches.",
+                "required": false,
+                "schema": {
+                    "type": "string"
                 }
             },
             "ApiSortDesc": {

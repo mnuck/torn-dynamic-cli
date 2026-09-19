@@ -65,7 +65,7 @@ go build -o torn ./cmd/torn/
 
 **Go version:** 1.24.4
 **Module:** `github.com/mnuck/torn-dynamic-cli`
-**Current spec version:** 6.13.5
+**Current spec version:** 6.13.6
 
 ## Dependencies
 
