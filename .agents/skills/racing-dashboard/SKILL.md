@@ -16,6 +16,13 @@ performance broken out by track and by car, over time.
 
 ## How to refresh
 
+**First, check `data/Racing.json`.** The API fetch does not refresh it, and the
+dashboard's "Event log: … to <date>" line comes from it. If that end date is behind
+today, re-export before you publish (see the Racing.json note below). The user will
+navigate a Chrome tab to torn.report/export. On the "Racing finish official race"
+row, click reload (↻) first, then click JSON. Confirm the download with the user,
+then move `~/Downloads/Racing finish official race.json` to `data/Racing.json`.
+
 ```bash
 .agents/skills/racing-dashboard/generate_racing_dashboard.sh
 open generated/racing_dashboard.html

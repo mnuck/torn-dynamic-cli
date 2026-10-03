@@ -25,6 +25,9 @@ are running actually needs — the table below says how.
 | `*_100lap_*.json` | Long-run single-race pulls kept for tail/record analysis | Refetch by raceID via the racing skills |
 | `alias23_*.json` | An independent driver's race log, used to validate the two-coin race model without fitting to it | Fetched once for validation; regenerate only if the model changes |
 | `cache_races.json` | Rolling cache of the user's own races | Written by the racing skills |
+| `stock_races_index.json` | Every finished stock-only custom race seen, accumulated across runs | `race-handicap/collect_index.py`. `/racing/races` only reaches back ~7 days, so **anything older than a week that wasn't indexed is gone**; run weekly |
+| `stock_e/racing_stock_e_<track>_*.json` | Raw `racingData` telemetry (all lanes + `carInfo`) for stock Class E races of ≥17 laps, ~130 MB | `race-handicap/telemetry_queue.py` + `grab_telemetry.js` in the logged-in browser (see its SKILL.md). Refetchable for ~6 months, then Torn drops it |
+| `stock_e_results.json` | Dated racing-skill snapshots per driver in that telemetry | `race-handicap/fetch_skills.py`. Skill is only ever a current value, so **past snapshots can't be recreated** |
 | `cache/war_attacks_<warid>.json` | Raw ranked-war attack log (~10 k records, ~6 MB) | `war_dashboard.py --cache data/cache/war_attacks_<id>.json`. A finished war is immutable, so this never needs invalidating |
 | `war_report_<id>.json`, `war_incoming_<id>.json`, `war_payout_<id>.csv` | Per-war derived reports and the payout sheet | `war-dashboard` skill |
 | `market-snapshots/prices.jsonl`, `capture.log` | Item-market price series, one JSON object per line | Appended every 30 min by the `deploy/` CronJob; pull down from the cluster PVC |
