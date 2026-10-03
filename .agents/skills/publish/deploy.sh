@@ -85,6 +85,32 @@ if [ "${#missing[@]}" -gt 0 ]; then
     exit 1
 fi
 
+# Secret gate. The commit path has .githooks/pre-commit refusing to commit a
+# Torn API key; nothing guarded the publish path, which is the worse of the two
+# because the hub is anonymous and public. Scan the staged bytes for the live
+# key before they go live.
+#
+# Match the exact key value, not a shape. A 16-character heuristic is fine for a
+# diff (mostly prose) but not for generated HTML: the OC dashboard alone carries
+# ~150 sixteen-character strings, so a shape check would cry wolf every run and
+# get switched off within a week.
+LIVE_KEY="${TORN_API_KEY:-$(grep -m1 '^TORN_API_KEY=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
+if [ -z "$LIVE_KEY" ]; then
+    echo "ERROR: TORN_API_KEY is unset, so the secret gate cannot run." >&2
+    echo "       A gate that silently matches nothing is worse than no gate." >&2
+    exit 1
+fi
+leaked=()
+for f in "$STAGING"/*; do
+    if grep -qF "$LIVE_KEY" "$f"; then leaked+=("$(basename "$f")"); fi
+done
+if [ "${#leaked[@]}" -gt 0 ]; then
+    echo "ERROR: the live Torn API key is embedded in files about to go public:" >&2
+    printf '         %s\n' "${leaked[@]}" >&2
+    echo "       Strip it from the generated output — the hub is public, the key is not." >&2
+    exit 1
+fi
+
 # Pages treats only its production branch as production; wrangler otherwise infers
 # the branch from git, so deploying from a feature branch silently publishes to a
 # preview URL instead of the live hub. Pin it.
