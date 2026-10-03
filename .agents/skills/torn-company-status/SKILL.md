@@ -42,7 +42,7 @@ When the user mentions any of:
 
 ## The Approach
 
-Execute these 3 API calls and produce the analysis report below. **Load the API key from the `.env` file** (it is not exported to the shell environment):
+Execute these 3 API calls and produce the analysis report below. **Load the API key from the `.env` file** (it is not exported to the shell environment), and pass it in the **Authorization header, never in the URL** — a key in the query string is written out in full by shell history, `ps`, and any proxy log, while the header keeps it out of all three:
 
 ```bash
 KEY=$(grep TORN_API_KEY .env | cut -d= -f2)
@@ -52,11 +52,11 @@ KEY=$(grep TORN_API_KEY .env | cut -d= -f2)
 
 ```bash
 # Get company profile (ID, name, type, rating)
-curl -s "https://api.torn.com/company/?selections=profile&key=$KEY"
+curl -s "https://api.torn.com/company/?selections=profile" -H "Authorization: ApiKey $KEY"
 # Returns: { "company": { "ID": N, "company_type": N, "name": "...", "rating": N, ... } }
 
 # Get company financials (daily/weekly income and customers)
-curl -s "https://api.torn.com/company/?selections=&key=$KEY"
+curl -s "https://api.torn.com/company/?selections=" -H "Authorization: ApiKey $KEY"
 # Returns: { "company": { "daily_income": N, "daily_customers": N, "weekly_income": N, "weekly_customers": N, ... } }
 ```
 
@@ -64,7 +64,7 @@ curl -s "https://api.torn.com/company/?selections=&key=$KEY"
 
 ```bash
 # Get all companies of the same type (e.g., type 8 = Candle Shop)
-curl -s "https://api.torn.com/company/{company_type}?selections=companies&key=$KEY"
+curl -s "https://api.torn.com/company/{company_type}?selections=companies" -H "Authorization: ApiKey $KEY"
 # Returns: { "company": { "id1": { "rating": N, "weekly_income": N }, ... } }
 ```
 
