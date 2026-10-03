@@ -59,6 +59,17 @@ for market prices.
 `--week YYYY-MM-DD` treats the given date as the current week start so a skipped
 week gets fetched and merged without a full rebuild.
 
+**Caution:** the fetch has no upper bound. `--week` rebuilds and reprices **every
+week from that date to now**, not only the week you name. After a backfill, restore
+the other weeks from `git show HEAD:.agents/skills/oc-dashboard/dashboard.html`,
+so that only the backfilled weeks and the current week change.
+
+To find weeks that need a backfill, compare each week's `crimes` count with the
+executed crimes (`Successful`/`Failure`, bucketed by UTC Monday of `executed_at`)
+in `data/oc_cache.json`. The CPR refresh brings that cache up to date. A week
+that shows fewer crimes than the cache was frozen before all of its crimes were
+recorded.
+
 ## Charts
 
 Each chart is scoped in its own IIFE inside `dashboard.html`:
