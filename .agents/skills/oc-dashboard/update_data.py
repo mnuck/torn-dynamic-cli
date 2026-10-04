@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """
-Fetch faction OC data from Torn API and embed it into dashboard.html.
+Fetch faction OC data from the Torn API, store it in BigQuery, and render the
+OC dashboard.
 
-Incremental update: on first run (or schema migration), does a full rebuild.
-On subsequent runs, fetches only the current week's crimes at current item
-prices and merges them into the frozen historical data already in the dashboard.
-This prevents past weeks from being silently repriced as market values shift.
+The weekly history lives in BigQuery (dataset oc_dashboard, tables weekly and
+daily), not in this repo. Each week's item rewards and consumed-item costs are
+priced when the week is processed and then frozen there, because Torn has no
+price-history API: re-pricing an old week would use today's market. On each run
+only the current week is fetched and re-priced, upserted into BigQuery, and the
+page is rendered from the full history.
 
 Usage:
-    python3 update_data.py
+    python3 update_data.py [--weeks N] [--week YYYY-MM-DD]
 
 Requires:
-    - TORN_API_KEY env var or a .env file in this directory
-    - dashboard.html in the same directory as this script
+    - TORN_API_KEY and BQ_PROJECT, as env vars or in the repo-root .env
+    - the bq CLI (Google Cloud SDK), authenticated for BQ_PROJECT
+    - dashboard.html (the page template) in the same directory as this script
+
+Writes generated/oc_dashboard.html at the repo root.
 """
 
 import argparse
@@ -20,6 +26,7 @@ import json
 import os
 import re
 import ssl
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -34,7 +41,10 @@ except ImportError:
     certifi = None
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DASHBOARD_HTML = os.path.join(SCRIPT_DIR, "dashboard.html")
+REPO_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "../../.."))
+DASHBOARD_TEMPLATE = os.path.join(SCRIPT_DIR, "dashboard.html")
+DASHBOARD_OUTPUT = os.path.join(REPO_ROOT, "generated", "oc_dashboard.html")
+BQ_DATASET = "oc_dashboard"
 API_BASE = "https://api.torn.com/v2"
 USER_AGENT = "torn-oc-dashboard/1.0"
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where()) if certifi else None
@@ -52,11 +62,11 @@ def load_env_file(path):
                 os.environ.setdefault(k.strip(), v.strip().strip("\"'"))
 
 
-# Prefer the TORN_API_KEY env var; otherwise read the torn-dynamic-cli repo
-# root .env. This script lives at .agents/skills/oc-dashboard/ within that repo,
-# so the root is three levels up.
-if not os.environ.get("TORN_API_KEY"):
-    load_env_file(os.path.join(SCRIPT_DIR, "../../../.env"))
+# Prefer env vars; otherwise read the torn-dynamic-cli repo root .env. This
+# script lives at .agents/skills/oc-dashboard/ within that repo, so the root is
+# three levels up.
+if not os.environ.get("TORN_API_KEY") or not os.environ.get("BQ_PROJECT"):
+    load_env_file(os.path.join(REPO_ROOT, ".env"))
 
 def api_key():
     key = os.environ.get("TORN_API_KEY")
@@ -210,6 +220,111 @@ def fetch_item_prices(crimes):
     return prices
 
 
+# Weekly per-difficulty maps: dashboard key -> BigQuery column.
+WEEKLY_MAP_COLUMNS = {
+    "byDiff": "by_diff",
+    "costByDiff": "cost_by_diff",
+    "countByDiff": "count_by_diff",
+    "winsByDiff": "wins_by_diff",
+    "personDaysByDiff": "person_days_by_diff",
+    "participantsByDiff": "participants_by_diff",
+}
+WEEKLY_INT_COLUMNS = ["money", "cost", "crimes", "wins", "fails"]
+
+
+def bq_project():
+    project = os.environ.get("BQ_PROJECT")
+    if not project:
+        print("ERROR: BQ_PROJECT is required via env var or .env", file=sys.stderr)
+        sys.exit(1)
+    return project
+
+
+def bq_table(name):
+    return f"`{bq_project()}.{BQ_DATASET}.{name}`"
+
+
+def bq_query(sql, params=()):
+    """Run a standard-SQL query with the bq CLI and return its rows as dicts.
+
+    bq returns every value as a string, so callers convert types themselves.
+    """
+    cmd = [
+        "bq", "--quiet", "--headless", f"--project_id={bq_project()}",
+        "query", "--use_legacy_sql=false", "--format=json", "--max_rows=1000000",
+    ]
+    cmd += [f"--parameter={p}" for p in params]
+    cmd.append(sql)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("ERROR: BigQuery query failed", file=sys.stderr)
+        print((result.stderr or result.stdout).strip(), file=sys.stderr)
+        sys.exit(1)
+    out = result.stdout.strip()
+    return json.loads(out) if out.startswith("[") else []
+
+
+def read_history():
+    """Return every stored week and day from BigQuery, oldest first."""
+    maps = ", ".join(f"TO_JSON_STRING({col}) AS {col}" for col in WEEKLY_MAP_COLUMNS.values())
+    weekly_rows = bq_query(
+        f"SELECT FORMAT_DATE('%F', week) AS week, {', '.join(WEEKLY_INT_COLUMNS)}, {maps} "
+        f"FROM {bq_table('weekly')} ORDER BY week"
+    )
+    weekly = []
+    for row in weekly_rows:
+        entry = {"week": row["week"]}
+        for col in WEEKLY_INT_COLUMNS:
+            entry[col] = int(row[col] or 0)
+        for key, col in WEEKLY_MAP_COLUMNS.items():
+            entry[key] = json.loads(row[col]) if row[col] else {}
+        weekly.append(entry)
+    daily_rows = bq_query(
+        f"SELECT FORMAT_DATE('%F', date) AS date, wins, crimes FROM {bq_table('daily')} ORDER BY date"
+    )
+    daily = [{"date": r["date"], "wins": int(r["wins"] or 0), "crimes": int(r["crimes"] or 0)} for r in daily_rows]
+    return weekly, daily
+
+
+def upsert_weekly(weekly):
+    """Insert or replace the given weeks in BigQuery."""
+    if not weekly:
+        return
+    ints = ", ".join(f"INT64(r.{col}) AS {col}" for col in WEEKLY_INT_COLUMNS)
+    maps = ", ".join(f"r.{key} AS {col}" for key, col in WEEKLY_MAP_COLUMNS.items())
+    columns = WEEKLY_INT_COLUMNS + list(WEEKLY_MAP_COLUMNS.values())
+    bq_query(
+        f"""MERGE {bq_table('weekly')} T
+USING (
+  SELECT DATE(STRING(r.week)) AS week, {ints}, {maps}
+  FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(@rows))) AS r
+) S
+ON T.week = S.week
+WHEN MATCHED THEN UPDATE SET {', '.join(f'{c} = S.{c}' for c in columns)}, updated_at = CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT (week, {', '.join(columns)}, updated_at)
+  VALUES (S.week, {', '.join(f'S.{c}' for c in columns)}, CURRENT_TIMESTAMP())""",
+        [f"rows:STRING:{json.dumps(weekly, separators=(',', ':'))}"],
+    )
+
+
+def upsert_daily(daily):
+    """Insert or replace the given days in BigQuery."""
+    if not daily:
+        return
+    bq_query(
+        f"""MERGE {bq_table('daily')} T
+USING (
+  SELECT DATE(STRING(r.date)) AS date, INT64(r.wins) AS wins, INT64(r.crimes) AS crimes
+  FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(@rows))) AS r
+) S
+ON T.date = S.date
+WHEN MATCHED THEN UPDATE SET wins = S.wins, crimes = S.crimes, updated_at = CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT (date, wins, crimes, updated_at)
+  VALUES (S.date, S.wins, S.crimes, CURRENT_TIMESTAMP())""",
+        [f"rows:STRING:{json.dumps(daily, separators=(',', ':'))}"],
+    )
+
+
 def week_start(ts):
     """Return the Monday of the week containing the given Unix timestamp (YYYY-MM-DD)."""
     dt = datetime.fromtimestamp(ts, tz=timezone.utc)
@@ -360,23 +475,9 @@ def apply_week_limit(weekly, daily, limit):
     return weekly, daily
 
 
-def read_existing_data():
-    """Parse the embedded const data = {...}; from dashboard.html. Returns dict or None."""
-    with open(DASHBOARD_HTML, "r") as f:
-        html = f.read()
-    pattern = re.compile(r"^const data = (\{.*\});$", re.MULTILINE)
-    match = pattern.search(html)
-    if not match:
-        return None
-    try:
-        return json.loads(match.group(1))
-    except (json.JSONDecodeError, Exception):
-        return None
-
-
-def inject_into_dashboard(data):
-    """Replace the const data = {...} line in dashboard.html."""
-    with open(DASHBOARD_HTML, "r") as f:
+def render_dashboard(data):
+    """Write the template with its const data = {...} line filled in to generated/."""
+    with open(DASHBOARD_TEMPLATE, "r") as f:
         html = f.read()
 
     json_str = json.dumps(data, separators=(",", ":"))
@@ -389,18 +490,21 @@ def inject_into_dashboard(data):
         sys.exit(1)
     new_html = html[:match.start()] + new_line + html[match.end():]
 
-    with open(DASHBOARD_HTML, "w") as f:
+    os.makedirs(os.path.dirname(DASHBOARD_OUTPUT), exist_ok=True)
+    with open(DASHBOARD_OUTPUT, "w") as f:
         f.write(new_html)
-    print("  Injected data into dashboard.html")
+    print(f"  Wrote {os.path.relpath(DASHBOARD_OUTPUT, REPO_ROOT)}")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--week", help="Override the current week start (YYYY-MM-DD), e.g. to backfill a missed week")
-    parser.add_argument("--weeks", type=int, help="Keep only the most recent N weeks in the generated dashboard")
+    parser.add_argument("--weeks", type=int, help="Show only the most recent N weeks (BigQuery keeps them all)")
     args = parser.parse_args()
 
-    existing = read_existing_data()
+    print("Reading history from BigQuery...")
+    existing_weekly, existing_daily = read_history()
+    print(f"  {len(existing_weekly)} weeks, {len(existing_daily)} days stored")
     if args.week:
         cur_week = datetime.strptime(args.week, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         print(f"Week override: treating {args.week} as current week start")
@@ -408,18 +512,10 @@ def main():
         cur_week = current_week_start()
     cur_week_str = cur_week.strftime("%Y-%m-%d")
 
-    # Full rebuild when: no existing data, or weekly entries lack costByDiff
-    # (costByDiff was added to support profit tracking — missing means old schema)
-    needs_full_rebuild = (
-        existing is None
-        or not existing.get("weekly")
-        or "costByDiff" not in existing["weekly"][0]
-        or "participantsByDiff" not in existing["weekly"][0]
-        or "personDaysByDiff" not in existing["weekly"][0]
-    )
-
-    if needs_full_rebuild:
-        print("Full rebuild (first run or schema migration)...")
+    # A full rebuild prices every past week at today's market, so it only runs
+    # when BigQuery has no history at all.
+    if not existing_weekly:
+        print("Full rebuild (no stored history)...")
         crimes = fetch_all_crimes()
         print("Fetching item prices...")
         time.sleep(60)  # avoid rate limiting after the paginated crimes fetch
@@ -428,7 +524,9 @@ def main():
         print("Building aggregates...")
         weekly = build_weekly(crimes, prices)
         daily = build_daily(crimes)
-        total_crimes = len(crimes)
+        print("Writing all weeks to BigQuery...")
+        upsert_weekly(weekly)
+        upsert_daily(daily)
     else:
         print(f"Incremental update — current week: {cur_week_str}")
         crimes = fetch_crimes_since(int(cur_week.timestamp()))
@@ -441,26 +539,32 @@ def main():
         # Build fresh entries for the current week only
         cur_weekly = build_weekly(crimes, prices)
         cur_daily = build_daily(crimes)
+        if args.week:
+            # The fetch has no upper bound, so a backfill also sees every later
+            # week. Store only the named week: the later ones are already frozen,
+            # and re-pricing them would overwrite their values in BigQuery.
+            week_end = (cur_week + timedelta(days=7)).strftime("%Y-%m-%d")
+            cur_weekly = [w for w in cur_weekly if w["week"] == cur_week_str]
+            cur_daily = [d for d in cur_daily if cur_week_str <= d["date"] < week_end]
+        print(f"Writing {len(cur_weekly)} week(s) and {len(cur_daily)} day(s) to BigQuery...")
+        upsert_weekly(cur_weekly)
+        upsert_daily(cur_daily)
 
-        # Merge: drop old entries for any week the fresh build covers (the
-        # fetch has no upper bound, so cur_weekly can span multiple weeks
-        # when --week backfills a past week), splice in the fresh ones
+        # Merge: drop old entries for the weeks just rebuilt, splice in the fresh ones
         cur_weeks = {w["week"] for w in cur_weekly}
-        weekly = [w for w in existing["weekly"] if w["week"] not in cur_weeks]
+        weekly = [w for w in existing_weekly if w["week"] not in cur_weeks]
         weekly += cur_weekly
         weekly.sort(key=lambda w: w["week"])
 
         cur_dates = {d["date"] for d in cur_daily}
-        daily = [d for d in existing["daily"] if d["date"] not in cur_dates]
+        daily = [d for d in existing_daily if d["date"] not in cur_dates]
         daily += cur_daily
         daily.sort(key=lambda d: d["date"])
-
-        total_crimes = sum(w["crimes"] for w in weekly)
 
     if args.weeks:
         print(f"Applying {args.weeks}-week dashboard window...")
         weekly, daily = apply_week_limit(weekly, daily, args.weeks)
-        total_crimes = sum(w["crimes"] for w in weekly)
+    total_crimes = sum(w["crimes"] for w in weekly)
 
     date_range = f"{weekly[0]['week']} – {weekly[-1]['week']}" if weekly else "n/a"
     print(f"  {len(weekly)} weeks, {len(daily)} days, date range: {date_range}")
@@ -475,8 +579,8 @@ def main():
         }
     }
 
-    print("Injecting into dashboard.html...")
-    inject_into_dashboard(data)
+    print("Rendering the dashboard...")
+    render_dashboard(data)
     print(f"\nDone. {total_crimes} crimes, {len(weekly)} weeks.")
 
 
