@@ -15,6 +15,41 @@ Working directories `data/` and `generated/` are both gitignored. `data/README.m
 
 **Spec source:** `https://www.torn.com/swagger/openapi.json` (no auth required). To update: `curl -s https://www.torn.com/swagger/openapi.json > cmd/torn/torn_openapi_v2.json`
 
+## `.env` is a broker FIFO, not a file
+
+The repo-root `.env` is **not a regular file**. It is a named pipe fed
+intermittently by an out-of-process secret broker: the broker opens the write
+end, writes a full payload (observed keys: `TORN_API_KEY`, `PAGES_PROJECT`,
+`TORN_FACTION_ID`, `BQ_PROJECT`, `EXTRA_MANIFEST`), and closes. Type `p`
+(`prw-------`) in `ls`/`stat` is the healthy state. Do not fight this design.
+
+Operating rules:
+
+- **An empty read is not a broken file.** A silent-failing `grep`, an empty
+  `source`/`.` of the file, `[[ -f .env ]]` being false, and `lsof` showing no
+  holder all mean the broker's write window simply wasn't open at that moment.
+  Do **not** declare `.env` destroyed, deleted, or unrecoverable, and do not go
+  hunting for workarounds based on one failed read.
+- **A single read is a race — retry.** A blocking open plus a few `select`
+  timeouts (or just re-running whatever command needed the value) normally
+  succeeds; the broker writes often enough that a second attempt usually gets
+  the payload. Pipe content is consumed as it is read, so when you need it
+  for real, drain the read to EOF.
+- **Sibling-clone `.env` files may hold different or stale keys** (e.g.
+  `~/torn_rw_stats/.env`). Torn keys rotate: a stale key fails with API error
+  2 "Incorrect key", and a key that works in one clone is not guaranteed to
+  be the current key for this repo. Verify any borrowed key against the live
+  API before trusting it; prefer the FIFO when in doubt.
+- **Never "repair" it into a regular file or delete it.** That would silently
+  strip the project's delivery path. The hook rule blocking edits to `.env*`
+  applies as it does for any file, and `.gitignore`'s `.env*` exclusion covers
+  the FIFO too.
+- **`deploy.sh` fails fast on a lost race.** Its `PAGES_PROJECT` lookup and
+  `TORN_API_KEY` gate each `grep` the file once — "PAGES_PROJECT is not set" is
+  a lost race, not missing configuration. Re-run, or pass `TORN_API_KEY` /
+  `PAGES_PROJECT` explicitly via the environment (the scripts prefer env over
+  file).
+
 ## Talking About Faction Members
 
 Nearly every skill output names real teammates. Keep the *numbers* honest and direct — who clears a CPR threshold, who was absent when an OC went ready, who traded down in a war — but keep the language about the *person* respectful and forward-looking. Never use dismissive labels ("dead weight", "liability", "carry", "weak link", "deadbeat", and the like). Frame a shortfall as situational ("hasn't cleared 70% on this slot yet", "was offline at ready time"), not as a verdict on who they are. Default to they/them unless a member's pronouns are known. Allied factions' members get the same treatment.
@@ -133,7 +168,7 @@ torn --help
 
 The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashboard (`generated/oc_dashboard.html`, rendered from BigQuery by the `oc-dashboard` skill) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, fastband, war) are served from `generated/`.
 
-**The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
+**The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset — which can also be a lost read race against the `.env` FIFO broker (see above) rather than missing configuration. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
 
 `.agents/skills/publish/deploy.sh` assembles a temp staging dir from a curated `MANIFEST` (edit the array in the script to change what ships) plus the OC dashboard as `index.html`, then runs `wrangler pages deploy`. It regenerates nothing — refresh each dashboard via its own skill first. Requires `wrangler` on `PATH` (the script sources nvm to find it). `.wrangler/` local state is gitignored. Use the `publish` skill for the full refresh → preview → deploy flow.
 
