@@ -20,13 +20,12 @@ and note the two path constants they set up:
 import sys
 OC_DIR = ".agents/skills/oc-dashboard"
 sys.path.insert(0, OC_DIR)          # so `import update_data` resolves
-DASHBOARD = f"{OC_DIR}/dashboard.html"
 ```
 
-Use the **full 52-week dashboard window by default**. Read `dashboard.html`,
-parse the embedded `const data = {...};`, and use `data.weekly[0].week` through
-`data.weekly[-1].week` as the analysis window unless the user explicitly asks
-for another date range.
+Use the **52-week dashboard window by default**: the most recent 52 weeks
+stored in BigQuery (`update_data.read_history()`), unless the user explicitly
+asks for another date range. BigQuery keeps every week, so longer ranges are
+available too.
 
 ## Core Definition
 
@@ -38,8 +37,8 @@ Torn crime slot data.
 - Cohort counts must count each member once per week at that highest weekly level.
 - This matches the dashboard's "Weekly Participants by Highest OC Level" logic.
 
-Do not infer member movement from the embedded dashboard counts alone; the
-dashboard does not store member IDs. Fetch completed crime slots from Torn.
+Do not infer member movement from the stored dashboard counts alone; they do
+not include member IDs. Fetch completed crime slots from Torn.
 
 ## Fetch Pattern
 
@@ -53,9 +52,8 @@ from collections import defaultdict, Counter
 sys.path.insert(0, ".agents/skills/oc-dashboard")
 import update_data
 
-html = Path(".agents/skills/oc-dashboard/dashboard.html").read_text()
-data = json.loads(re.search(r"^const data = (\{.*\});$", html, re.M).group(1))
-weeks = [w["week"] for w in data["weekly"]]
+weekly, _ = update_data.read_history()  # needs BQ_PROJECT and the bq CLI
+weeks = [w["week"] for w in weekly][-52:]
 start = datetime.fromisoformat(weeks[0]).replace(tzinfo=timezone.utc)
 crimes = update_data.fetch_crimes_since(int(start.timestamp()))
 ```

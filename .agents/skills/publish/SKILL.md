@@ -46,7 +46,7 @@ that array to add or drop a dashboard from the live site.
 Open the OC dashboard (and any other refreshed page) and confirm it looks right:
 
 ```bash
-open .agents/skills/oc-dashboard/dashboard.html
+open generated/oc_dashboard.html
 ```
 
 Or load it in the in-app Browser. Ask the user to eyeball it and wait for an
@@ -80,6 +80,7 @@ output and stop; do not re-run with a different `--branch` to force it through.
   uploading if any manifest file is missing or empty, and lists them all.
   Regenerate them via their skills; to retire a page on purpose, remove it
   from `MANIFEST`. Don't delete the entry just to get past the error.
-- Pushing to git is separate from deploying. `dashboard.html` refreshes should be
-  committed (`Data refresh: N crimes...`); the other dashboards under `generated/`
-  are gitignored regenerable output.
+- Pushing to git is separate from deploying. All dashboards, the OC one
+  included, are gitignored output under `generated/`; the OC dashboard's
+  history lives in BigQuery (see the `oc-dashboard` skill), so a refresh has
+  nothing to commit.

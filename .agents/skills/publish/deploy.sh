@@ -7,9 +7,10 @@
 # in the environment or in the repo-root .env (which is gitignored); the hub
 # URL is derived from it as https://$PAGES_PROJECT.pages.dev.
 #
-# The OC revenue dashboard (.agents/skills/oc-dashboard/dashboard.html) becomes
-# the site's index.html; the rest of the hub is copied from generated/ by the
-# MANIFEST below. Refresh each dashboard via its own skill BEFORE publishing —
+# The OC revenue dashboard (generated/oc_dashboard.html, rendered by the
+# oc-dashboard skill from its history in BigQuery) becomes the site's
+# index.html; the rest of the hub is copied from generated/ by the MANIFEST
+# below. Refresh each dashboard via its own skill BEFORE publishing —
 # this script only ships whatever is currently on disk.
 #
 # Usage (from repo root, or via the publish skill):
@@ -47,7 +48,7 @@ MANIFEST=(
     kassie_war_report.html
 )
 
-OC_DASHBOARD=".agents/skills/oc-dashboard/dashboard.html"
+OC_DASHBOARD="generated/oc_dashboard.html"
 
 # nvm-managed node hosts the wrangler CLI.
 export NVM_DIR="$HOME/.nvm"
@@ -57,8 +58,9 @@ STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
 
 # OC revenue dashboard is the hub home page.
-if [ ! -f "$OC_DASHBOARD" ]; then
-    echo "ERROR: OC dashboard not found at $OC_DASHBOARD" >&2
+if [ ! -s "$OC_DASHBOARD" ]; then
+    echo "ERROR: OC dashboard missing or empty at $OC_DASHBOARD" >&2
+    echo "       Render it with .agents/skills/oc-dashboard/generate_oc_dashboard.sh --weeks 52" >&2
     exit 1
 fi
 cp "$OC_DASHBOARD" "$STAGING/index.html"
