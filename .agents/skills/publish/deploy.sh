@@ -23,10 +23,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${TORN_REPO_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 cd "$REPO_ROOT"
 
-# Pages project name lives in the environment or .env, never in the repo.
-if [[ -z "${PAGES_PROJECT:-}" && -f .env ]]; then
-    PAGES_PROJECT="$(grep -m1 '^PAGES_PROJECT=' .env | cut -d= -f2- | tr -d '"'"'"' ')"
+# .env is a FIFO fed by a secret broker (see AGENTS.md), so `-f` is false for
+# it and content is consumed as it is read. Read it once, to EOF, and take every
+# value from that one payload — a second read would wait on a second broker
+# write. The wait is bounded: opening a pipe with no writer blocks forever.
+ENV_PAYLOAD=""
+if [[ -z "${PAGES_PROJECT:-}" || -z "${TORN_API_KEY:-}" ]]; then
+    if [[ -p .env ]]; then
+        ENV_PAYLOAD="$(perl -e 'alarm 30; open(my $f, "<", ".env") or exit 1; local $/; print scalar <$f>' 2>/dev/null || true)"
+    elif [[ -f .env ]]; then
+        ENV_PAYLOAD="$(cat .env)"
+    fi
 fi
+env_value() {
+    printf '%s\n' "$ENV_PAYLOAD" | grep -m1 "^$1=" | cut -d= -f2- | tr -d '"'"'"' ' || true
+}
+
+# Pages project name lives in the environment or .env, never in the repo.
+PAGES_PROJECT="${PAGES_PROJECT:-$(env_value PAGES_PROJECT)}"
 if [[ -z "${PAGES_PROJECT:-}" ]]; then
     echo "ERROR: PAGES_PROJECT is not set." >&2
     echo "       Add 'PAGES_PROJECT=<your-pages-project>' to .env, or export it." >&2
@@ -96,7 +110,7 @@ fi
 # diff (mostly prose) but not for generated HTML: the OC dashboard alone carries
 # ~150 sixteen-character strings, so a shape check would cry wolf every run and
 # get switched off within a week.
-LIVE_KEY="${TORN_API_KEY:-$(grep -m1 '^TORN_API_KEY=' .env 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' ')}"
+LIVE_KEY="${TORN_API_KEY:-$(env_value TORN_API_KEY)}"
 if [ -z "$LIVE_KEY" ]; then
     echo "ERROR: TORN_API_KEY is unset, so the secret gate cannot run." >&2
     echo "       A gate that silently matches nothing is worse than no gate." >&2

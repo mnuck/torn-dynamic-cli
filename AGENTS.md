@@ -44,11 +44,12 @@ Operating rules:
   strip the project's delivery path. The hook rule blocking edits to `.env*`
   applies as it does for any file, and `.gitignore`'s `.env*` exclusion covers
   the FIFO too.
-- **`deploy.sh` fails fast on a lost race.** Its `PAGES_PROJECT` lookup and
-  `TORN_API_KEY` gate each `grep` the file once — "PAGES_PROJECT is not set" is
-  a lost race, not missing configuration. Re-run, or pass `TORN_API_KEY` /
-  `PAGES_PROJECT` explicitly via the environment (the scripts prefer env over
-  file).
+- **`deploy.sh` reads the pipe once and waits up to 30s for it.** It drains
+  one payload to EOF and takes both `PAGES_PROJECT` and `TORN_API_KEY` from
+  it. "PAGES_PROJECT is not set" after that wait means the broker never wrote
+  — re-run, or pass `TORN_API_KEY` / `PAGES_PROJECT` explicitly via the
+  environment (the scripts prefer env over file). Don't guard a `.env` read
+  with `[[ -f .env ]]`: it is false for a pipe, so the read never happens.
 
 ## Talking About Faction Members
 
@@ -168,7 +169,7 @@ torn --help
 
 The faction runs a live dashboard hub on Cloudflare Pages. The OC revenue dashboard (`generated/oc_dashboard.html`, rendered from BigQuery by the `oc-dashboard` skill) is the home page (`index.html`); the other dashboards (cpr, racing, chain, respect, fastband, war) are served from `generated/`.
 
-**The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset — which can also be a lost read race against the `.env` FIFO broker (see above) rather than missing configuration. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
+**The project name and hub URL are not in this repo.** This repo is public and the Pages project name is also the public hostname, so it lives in `.env` as `PAGES_PROJECT` (see `.env.example`); `deploy.sh` derives the URL as `https://$PAGES_PROJECT.pages.dev` and exits with a clear error if it's unset — which can also mean the `.env` FIFO broker never wrote during the script's 30s wait (see above) rather than missing configuration. Don't hardcode it back in — that applies to the faction name and hub URL generally, in code, docs, and skill files alike.
 
 `.agents/skills/publish/deploy.sh` assembles a temp staging dir from a curated `MANIFEST` (edit the array in the script to change what ships) plus the OC dashboard as `index.html`, then runs `wrangler pages deploy`. It regenerates nothing — refresh each dashboard via its own skill first. Requires `wrangler` on `PATH` (the script sources nvm to find it). `.wrangler/` local state is gitignored. Use the `publish` skill for the full refresh → preview → deploy flow.
 
