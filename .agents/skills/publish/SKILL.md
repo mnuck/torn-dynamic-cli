@@ -21,9 +21,10 @@ is unset the script exits with instructions; do not hardcode a value to get
 past that.
 
 One subtlety: the repo-root `.env` here is a **FIFO fed by an out-of-process
-secret broker** (see AGENTS.md, "`.env` is a broker FIFO, not a file"), so the
-"PAGES_PROJECT is not set" exit can be a lost read race rather than missing
-configuration. Re-run the script before digging further.
+secret broker** (see AGENTS.md, "`.env` is a broker FIFO, not a file"). The
+script waits up to 30s for the broker to write, so a "PAGES_PROJECT is not set"
+exit can mean the broker was quiet rather than that configuration is missing.
+Re-run the script before digging further.
 
 The deploy is a plain aggregation of files already on disk — it does **not**
 regenerate anything. Refresh whatever the user cares about first (see Step 1),
