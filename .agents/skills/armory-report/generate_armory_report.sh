@@ -20,13 +20,24 @@ fi
 # The faction inventory selections (armor/medical/temporary) were removed from
 # the v2 API (error 22: "This selection is only available in API v1"), so we
 # hit v1 directly with curl here. Prices still come from the v2 CLI below.
-if [ -z "$TORN_API_KEY" ] && [ -f .env ]; then
-    TORN_API_KEY=$(awk -F= '/^TORN_API_KEY=/{print $2}' .env)
+# .env is a FIFO fed by a secret broker (see AGENTS.md), so `-f` is false for
+# it. Drain one payload to EOF, bounded: opening a pipe with no writer blocks
+# forever, and the broker may take a while to open its write end.
+if [ -z "$TORN_API_KEY" ]; then
+    ENV_PAYLOAD=""
+    if [ -p .env ]; then
+        ENV_PAYLOAD="$(perl -e 'alarm 30; open(my $f, "<", ".env") or exit 1; local $/; print scalar <$f>' 2>/dev/null || true)"
+    elif [ -f .env ]; then
+        ENV_PAYLOAD="$(cat .env)"
+    fi
+    TORN_API_KEY="$(printf '%s\n' "$ENV_PAYLOAD" | grep -m1 '^TORN_API_KEY=' | cut -d= -f2- | tr -d '"'"'"' ' || true)"
 fi
 if [ -z "$TORN_API_KEY" ]; then
-    echo "error: TORN_API_KEY not set (env or .env)" >&2
+    echo "error: TORN_API_KEY not set (env or .env; the .env broker may not have written within 30s — re-run)" >&2
     exit 1
 fi
+# Exported so ./torn takes the key from the environment instead of the pipe.
+export TORN_API_KEY
 
 # Item ID mapping - armor
 BOOTS_ID=653
