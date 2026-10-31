@@ -26,6 +26,7 @@ import urllib.request
 import urllib.error
 
 API_BASE = "https://api.torn.com/v2"
+CACHE_DIR = os.path.expanduser("~/.torn_cache")
 
 # Dark-mode categorical palette (dataviz skill reference palette, 8-hue fixed
 # order). Cycled across attackers in order of first appearance -- with every
@@ -99,7 +100,13 @@ def _ssl_context():
 _SSL_CTX = _ssl_context()
 
 
-def api_get(url, api_key, retries=5):
+def _rate_limit_wait(attempt):
+    # Torn's limit is 100 requests per rolling minute, so short backoffs just
+    # re-hit it; a long chain (10k+ hits) needs the window to actually clear.
+    return min(60, 10 * 2 ** attempt)
+
+
+def api_get(url, api_key, retries=6):
     headers = {
         "Authorization": f"ApiKey {api_key}",
         "User-Agent": "TornChainDashboard/1.0",
@@ -114,7 +121,7 @@ def api_get(url, api_key, retries=5):
                 code = data["error"].get("code", 0)
                 msg = data["error"].get("error", "Unknown")
                 if code == 5:
-                    wait = 2 ** attempt + 1
+                    wait = _rate_limit_wait(attempt)
                     print(f"  Rate limited, waiting {wait}s ...", flush=True)
                     time.sleep(wait)
                     continue
@@ -122,12 +129,12 @@ def api_get(url, api_key, retries=5):
             return data
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                wait = 2 ** attempt + 1
+                wait = _rate_limit_wait(attempt)
                 print(f"  HTTP 429, waiting {wait}s ...", flush=True)
                 time.sleep(wait)
                 continue
             raise
-        except urllib.error.URLError:
+        except (urllib.error.URLError, TimeoutError):
             if attempt < retries - 1:
                 time.sleep(2)
                 continue
@@ -146,14 +153,53 @@ def fetch_current_chain(api_key):
     return data.get("chain", {})
 
 
-def fetch_chain_attacks(api_key, faction_id, chain_start, chain_end=None):
-    """Fetch every outgoing attack from chain_start onward, following
-    pagination, filtered to hits landed by our own faction members."""
-    url = f"{API_BASE}/faction/attacks?limit=1000&filters=attack&sort=asc&from={chain_start}"
-    if chain_end:
-        url += f"&to={chain_end}"
+def _cache_path(chain_id):
+    return os.path.join(CACHE_DIR, f"chain_{chain_id}_attacks.json")
 
-    by_chain_num = {}
+
+def _load_cache(chain_id):
+    try:
+        with open(_cache_path(chain_id)) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {"complete": False, "attacks": []}
+
+
+def _save_cache(chain_id, complete, attacks_by_id):
+    path = _cache_path(chain_id)
+    _ensure_parent_dir(path)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump({"complete": complete, "attacks": list(attacks_by_id.values())}, f)
+    os.replace(tmp, path)
+
+
+def fetch_raw_attacks(api_key, chain_id, chain_start, chain_end=None):
+    """Every attack record in the chain's padded window, unfiltered.
+
+    Raw records are cached per chain id so a re-render (or a change to the
+    filtering below) costs no API calls. A finished chain is fetched once; a
+    live chain resumes from its newest cached attack. The cache is written
+    after every page, so a crash or rate-limit failure mid-walk keeps progress.
+    """
+    cache = _load_cache(chain_id)
+    attacks_by_id = {a["id"]: a for a in cache["attacks"]}
+    if cache["complete"]:
+        print(f"  Using cached attacks for chain {chain_id} ({len(attacks_by_id)} records)")
+        return list(attacks_by_id.values())
+
+    # The chainreport's start/end don't line up with the attacks endpoint's
+    # from/to filter: the final hit can end a second after `end` and drop out
+    # of a tight window (chain 72075932 lost hit #10000 this way). Pad both
+    # sides by the max fight length; extract_hits trims back to the chain.
+    from_ts = chain_start - 300
+    if attacks_by_id:
+        from_ts = max(a.get("started") or 0 for a in attacks_by_id.values()) - 300
+        print(f"  Resuming from {len(attacks_by_id)} cached records")
+    url = f"{API_BASE}/faction/attacks?limit=1000&filters=attack&sort=asc&from={from_ts}"
+    if chain_end:
+        url += f"&to={chain_end + 300}"
+
     seen_ids = set()
     page = 0
     while url:
@@ -170,23 +216,41 @@ def fetch_chain_attacks(api_key, faction_id, chain_start, chain_end=None):
             break
         seen_ids |= new_ids
         for a in attacks:
-            attacker = a.get("attacker")
-            if not attacker:
-                continue
-            fac = attacker.get("faction")
-            if not fac or fac.get("id") != faction_id:
-                continue
-            n = a.get("chain", 0)
-            if n <= 0:
-                continue  # non-counting result (miss/lost/escape/interrupt/etc.)
-            by_chain_num[n] = {
-                "chain": n,
-                "ts": a.get("started"),
-                "id": attacker["id"],
-                "name": attacker.get("name", f"#{attacker['id']}"),
-            }
+            attacks_by_id[a["id"]] = a
+        _save_cache(chain_id, False, attacks_by_id)
         url = (data.get("_metadata", {}) or {}).get("links", {}).get("next")
 
+    # Only a chain whose padded window has fully closed can't gain records.
+    complete = bool(chain_end) and time.time() > chain_end + 300
+    _save_cache(chain_id, complete, attacks_by_id)
+    return list(attacks_by_id.values())
+
+
+def extract_hits(attacks, faction_id, chain_start, chain_end=None):
+    """Counting hits landed by our own members, ordered by chain number."""
+    by_chain_num = {}
+    for a in attacks:
+        attacker = a.get("attacker")
+        if not attacker:
+            continue
+        fac = attacker.get("faction")
+        if not fac or fac.get("id") != faction_id:
+            continue
+        n = a.get("chain", 0)
+        if n <= 0:
+            continue  # non-counting result (miss/lost/escape/interrupt/etc.)
+        # Neighbouring chains' hits fall inside the padded window and would
+        # collide on chain numbers.
+        if (a.get("ended") or 0) < chain_start:
+            continue
+        if chain_end and (a.get("started") or 0) > chain_end:
+            continue
+        by_chain_num[n] = {
+            "chain": n,
+            "ts": a.get("started"),
+            "id": attacker["id"],
+            "name": attacker.get("name", f"#{attacker['id']}"),
+        }
     return [by_chain_num[k] for k in sorted(by_chain_num)]
 
 
@@ -489,7 +553,8 @@ def main():
             sys.exit(1)
 
     print(f"Chain #{chain['id']}, start={chain.get('start')}")
-    hits = fetch_chain_attacks(api_key, faction_id, chain["start"], chain.get("end"))
+    attacks = fetch_raw_attacks(api_key, chain["id"], chain["start"], chain.get("end"))
+    hits = extract_hits(attacks, faction_id, chain["start"], chain.get("end"))
     print(f"Collected {len(hits)} hits from {len(set(h['id'] for h in hits))} attackers")
 
     build_html(faction_id, faction_name, chain, hits, args.output)

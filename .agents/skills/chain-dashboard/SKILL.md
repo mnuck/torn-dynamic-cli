@@ -33,13 +33,28 @@ past, already-completed chain instead:
 
 Pulls `/faction/chain` for the live chain's start time (or `/faction/chainreport`
 for a past chain's start/end), then walks `/faction/attacks?filters=attack`
-from that timestamp, paginating via `_metadata.links.next`. Each attack record
+over that window padded by 300s on each side, paginating via
+`_metadata.links.next`. The padding is needed: the report's `end` can fall a
+second before the final hit ends, and a tight window silently drops it (chain
+72075932 came out at 9,999 hits). Each attack record
 carries a `chain` field — the running chain count immediately after that hit —
 which is unique and monotonic for every hit that actually counted (`Attacked`
 or `Mugged`); non-counting results (`Lost`, `Escape`, `Stalemate`, `Timeout`,
 `Interrupted`, `Assist`) report `chain: 0` and are dropped. Records are also
 filtered to attacks landed by our own faction's members (`attacker.faction.id`),
-since incoming/unrelated attacks can slip into that endpoint's results.
+since incoming/unrelated attacks can slip into that endpoint's results, and to
+hits overlapping the chain's own start/end, so a neighbouring chain's hits in
+the padding can't collide on chain numbers.
+
+### Cache
+
+Raw attack records (unfiltered) are cached per chain at
+`~/.torn_cache/chain_<id>_attacks.json`. A finished chain is fetched once and
+every re-render after that makes no attack-page requests; a 10k-hit chain is
+~120 pages, which runs into Torn's 100-requests-per-minute limit. A live chain
+resumes from its newest cached attack. The cache is saved after every page, so
+a failed run picks up where it stopped. Because the cache holds raw records,
+changing the filtering doesn't need a refetch. Delete the file to force one.
 
 The resulting ordered hit list is embedded directly in the HTML; the page
 computes cumulative per-attacker totals client-side as the slider moves, so no
