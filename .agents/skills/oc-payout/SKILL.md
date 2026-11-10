@@ -71,40 +71,56 @@ print(f'Payout:   {c.get(\"rewards\", {}).get(\"payout\")}')
 "
 ```
 
-**No ID provided (broad question)?** Scan the executed feed for all unpaid successful crimes —
-`status == "Successful"` and `rewards.payout == null` means it hasn't been paid out yet:
+**No ID provided (broad question)?** Scan for unpaid successful crimes —
+`status == "Successful"` and `rewards.payout == null` means it hasn't been paid out yet.
+
+**Chains change what "unpaid" means.** A predecessor (e.g. "No Reserve") has *no reward of its
+own* — its only payoff is spawning a follow-up crime (e.g. "Bidding War"), and the follow-up's
+payout covers both crimes' members. So a predecessor always shows `payout == null`, forever,
+and that is NOT "awaiting payout". Rules the scan applies:
+
+- A crime is a predecessor if **any** crime (executed *or* still planning/recruiting) lists it
+  as `previous_crime_id`. Predecessors are never listed as unpaid on their own.
+- Instead the scan lists the **follow-up** as the payable item, with its predecessor attached.
+  If the follow-up hasn't executed yet, say "waiting on follow-up <id> (ready_at …)" — nothing
+  is payable yet, and the predecessor must not be reported as a missed payout however old it is.
+- A follow-up's payout covers the members of the follow-up **and** its predecessor, each judged
+  against their own crime's `ready_at` (see Step 2a).
 
 ```bash
-./torn faction crimes --cat executed --filters executed_at 2>&1 | python3 -c "
+{ ./torn faction crimes --cat executed --filters executed_at; echo; ./torn faction crimes --cat available; } 2>&1 | python3 -c "
 import json, sys, datetime
-data = json.load(sys.stdin)
-crimes = data.get('crimes', [])
-# A predecessor crime never gets its own payout — its reward is bundled into the
-# follow-up crime (previous_crime_id points back to it). If that follow-up has
-# already been paid, the predecessor isn't actually awaiting anything; drop it.
-paid_predecessor_ids = {
-    c['previous_crime_id'] for c in crimes
-    if c.get('previous_crime_id') and c.get('rewards', {}).get('payout') is not None
-}
-unpaid = [c for c in crimes
-          if c.get('status') == 'Successful' and c.get('rewards', {}).get('payout') is None
-          and c['id'] not in paid_predecessor_ids]
-print(f'Unpaid successful crimes: {len(unpaid)}')
-print()
-for c in sorted(unpaid, key=lambda x: x.get('executed_at') or 0, reverse=True):
-    ready, ex = c['ready_at'], c.get('executed_at')
-    delta = ex - ready
-    e = datetime.datetime.fromtimestamp(ex, tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-    late = 'LATE' if delta > 90 else 'on time'
-    chain = f'  [chain: prev={c[\"previous_crime_id\"]}]' if c.get('previous_crime_id') else ''
-    print(f'  {c[\"id\"]}  {c[\"name\"]:30s}  delta={delta}s ({delta//60}m {delta%60}s)  [{late}]  exec={e}{chain}')
+dec = json.JSONDecoder(); raw = sys.stdin.read(); crimes = []; i = 0
+while i < len(raw):
+    if raw[i].isspace(): i += 1; continue
+    obj, i = dec.raw_decode(raw, i); crimes += obj.get('crimes', [])
+by_id = {c['id']: c for c in crimes}
+pred_ids = {c['previous_crime_id'] for c in crimes if c.get('previous_crime_id')}
+fmt = lambda t: datetime.datetime.fromtimestamp(t, tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+def delta(c): return c['executed_at'] - c['ready_at']
+payable, waiting = [], []
+for c in crimes:
+    pid = c.get('previous_crime_id')
+    if pid and c['id'] in by_id:
+        if c.get('status') == 'Successful' and c.get('rewards', {}).get('payout') is None: payable.append(c)
+        elif not c.get('executed_at'): waiting.append(c)
+    elif c['id'] not in pred_ids and c.get('status') == 'Successful' and c.get('rewards', {}).get('payout') is None:
+        payable.append(c)
+print('Unpaid successful crimes (predecessors folded into follow-ups): %d' % len(payable))
+tag = lambda c: 'LATE' if delta(c) > 90 else 'on time'
+for c in sorted(payable, key=lambda x: x.get('executed_at') or 0, reverse=True):
+    print('  %s  %-28s delta=%ss [%s] exec=%s' % (c['id'], c['name'], delta(c), tag(c), fmt(c['executed_at'])))
+    if c.get('previous_crime_id'):
+        p = by_id.get(c['previous_crime_id'])
+        info = '%s, delta=%ss [%s]' % (p['name'], delta(p), tag(p)) if p and p.get('executed_at') else 'not in this window; fetch it directly'
+        print('      chain: prev=%s (%s)' % (c['previous_crime_id'], info))
+for c in waiting:
+    print('  WAITING follow-up %s %s (prev=%s) ready_at=%s - nothing payable yet' % (c['id'], c['name'], c['previous_crime_id'], fmt(c['ready_at'])))
 "
 ```
 
-**Predecessor crimes with a paid follow-up will never show `rewards.payout` populated on
-themselves** — Torn only tracks the payout on the follow-up crime. Don't mistake that for
-"still awaiting payout"; the scan above already filters these out. If a predecessor's
-follow-up hasn't executed/paid yet, it's still legitimately outstanding and will show up.
+A predecessor older than the executed feed's window won't be in `by_id`; if a follow-up's
+predecessor is missing from the scan, fetch it directly with `torn faction crime --crimeId`.
 
 **The server-lag rule (~90s).** Torn does not fire crimes on a tight tick — measured across
 84 real successful firings, the on-time deltas form a continuous cluster from **~4s up to
@@ -129,6 +145,15 @@ mandatory follow-up crime. When the follow-up executes, its payout covers the me
 `previous_crime_id`, always fetch the previous crime too and check whether *it* was late.
 The lateness of the previous crime affects who gets paid out of the follow-up's reward.
 Use the same delta check on the previous crime's `ready_at` vs `executed_at`.
+
+**The predecessor's own record will never show a payout or reward** (`rewards.money == 0`,
+`payout == null`, no items) — that's by design, not a missed payout. When the user gives a
+predecessor's ID, or a predecessor shows up in a scan, locate its follow-up (the crime whose
+`previous_crime_id` equals it — check `--cat available` if it hasn't executed) and handle the
+payout there. If the user gives a follow-up's ID, walk `previous_crime_id` back automatically;
+the Step 2a lateness check then runs for **both** crimes' slot members, each against that
+crime's own `ready_at`, and the split divides the follow-up's reward among everyone on time
+across both.
 
 ---
 
@@ -318,8 +343,10 @@ their confirmation to make, every time.
    Always prefer this over scanning the executed feed.
 2. **No ID?** Scan for `status == "Successful"` and `rewards.payout == null`.
    Already-paid crimes have `rewards.payout` populated.
-3. **Chain check:** if `previous_crime_id` is non-null, fetch and check that crime too —
-   its lateness affects who gets paid from this payout.
+3. **Chain check:** a predecessor (something another crime lists as `previous_crime_id`) never
+   has its own payout and is never "unpaid" — pay it via its follow-up, which may still be
+   planning (nothing payable until it fires). Given a follow-up, fetch and check the
+   predecessor too; its members are judged against the predecessor's own `ready_at`.
 4. Compare `ready_at` vs `executed_at`. ≤~90s = on time → "pay out normally." More = late →
    "pay out at zero, then tell me the total."
 5. (Late only) Pull slot members, resolve names, query BigQuery for status at ready_at.
